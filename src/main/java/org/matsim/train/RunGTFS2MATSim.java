@@ -26,7 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.network.Link;
@@ -57,8 +57,8 @@ import org.matsim.vehicles.VehiclesFactory;
 */
 
 public class RunGTFS2MATSim {
-	
-	private static final Logger log = Logger.getLogger(RunGTFS2MATSim.class);
+
+	private static final org.apache.logging.log4j.Logger log = LogManager.getLogger(RunGTFS2MATSim.class);
 	private static final String svnDir = "../";
 //	private static final String DBGTFSFile = svnDir + "public-svn/matsim/scenarios/countries/de/germany/original_data/gtfs/2019.zip";
 //	private static final String DBGTFSFile = svnDir + "public-svn/matsim/scenarios/countries/de/germany/original_data/gtfs/2016.zip";
@@ -113,12 +113,12 @@ public class RunGTFS2MATSim {
 		
 		Config config = scenario.getConfig();
 		
-		config.controler().setOutputDirectory("output/");
-		config.controler().setLastIteration(0);
-		config.controler().setOverwriteFileSetting(OverwriteFileSetting.deleteDirectoryIfExists);
+		config.controller().setOutputDirectory("output/");
+		config.controller().setLastIteration(0);
+		config.controller().setOverwriteFileSetting(OverwriteFileSetting.deleteDirectoryIfExists);
 		
 		config.global().setNumberOfThreads(8);
-		config.controler().setRunId("test_GTFS_Schedule");
+		config.controller().setRunId("test_GTFS_Schedule");
 //		config.qsim().setEndTime(48*3600);
 		
 		config.transit().setUseTransit(true);
@@ -277,7 +277,7 @@ public class RunGTFS2MATSim {
 						if (!schedule.getFacilities().containsKey(Id.create(prefix + stop.getStopFacility().getId(), TransitStopFacility.class))) {
 							transitStopWithNewId = tsf.createTransitStopFacility(Id.create(prefix + stop.getStopFacility().getId(), TransitStopFacility.class), stop.getStopFacility().getCoord(), stop.getStopFacility().getIsBlockingLane());
 							transitStopWithNewId.setName(stop.getStopFacility().getName());
-							TransitScheduleUtils.putStopFacilityAttribute(transitStopWithNewId, "type", mode);
+							transitStopWithNewId.getAttributes().putAttribute("type", mode);
 							schedule.addStopFacility(transitStopWithNewId);
 						}
 						else {

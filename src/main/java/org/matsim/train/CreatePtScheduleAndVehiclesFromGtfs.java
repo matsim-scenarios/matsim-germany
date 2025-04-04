@@ -20,7 +20,8 @@
 package org.matsim.train;
 
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.network.Link;
@@ -30,9 +31,7 @@ import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.transformations.TransformationFactory;
-import org.matsim.pt.transitSchedule.TransitScheduleWriterV2;
 import org.matsim.pt.transitSchedule.api.*;
-import org.matsim.pt.utils.CreatePseudoNetwork;
 import org.matsim.pt.utils.CreateVehiclesForSchedule;
 
 import com.conveyal.gtfs.GTFSFeed;
@@ -47,7 +46,7 @@ import java.util.List;
 
 public class CreatePtScheduleAndVehiclesFromGtfs {
 
-    private static final Logger log = Logger.getLogger(CreatePtScheduleAndVehiclesFromGtfs.class);
+    private static final Logger log = LogManager.getLogger(RunGTFS2MATSim.class);
 
     public Scenario run(String gtfsZipFile, String date, String networkPrefix) {
 
