@@ -2,13 +2,14 @@ package org.matsim.car;
 
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.core.network.NetworkUtils;
-import org.matsim.core.network.algorithms.NetworkCleaner;
 import org.matsim.core.network.io.NetworkWriter;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.transformations.TransformationFactory;
 import org.matsim.core.utils.io.OsmNetworkReader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.HashSet;
 
 
 /**
@@ -44,7 +45,7 @@ public class RunCreateNetworkFromOSM {
 		reader.parse(input.toString());
 
 		// clean the network to remove unconnected parts where agents might get stuck
-		new NetworkCleaner().run(network);
+		NetworkUtils.cleanNetwork(network, new HashSet<>(Collections.singletonList("car")));
 
 		// write out the network into a file
 		new NetworkWriter(network).write("./output/network.xml.gz");
