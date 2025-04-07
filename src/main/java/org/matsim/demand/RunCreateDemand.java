@@ -40,18 +40,26 @@ public class RunCreateDemand {
 		boolean bike = false;
 		boolean walk = false;
 		
-		double sample = 0.1;
+		double sample = 0.001;
 		
-		String outputPopulationFile = "output/onlyCar" + 100 * sample + "pct.xml";
-		
-		
+		String outputPopulationFile = "output/onlyCar" + getSampleNameOfOutputFolder(sample) + "pct.xml.gz";
+
 		try {
-			Population population = CreateDemand.create(outputPopulationFile, sample, train, car, airplane, pt, bike, walk);
+			CreateDemand.create(outputPopulationFile, sample, train, car, airplane, pt, bike, walk);
 		} catch (MalformedURLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
+	}
+
+	private static String getSampleNameOfOutputFolder(double sample) {
+		String sampleName;
+		if ((sample * 100) % 1 == 0)
+			sampleName = String.valueOf((int) (sample * 100));
+		else
+			sampleName = String.valueOf((sample * 100));
+		return sampleName;
 	}
 
 }
