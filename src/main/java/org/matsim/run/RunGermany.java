@@ -386,10 +386,10 @@ public class RunGermany {
 		mergeSchedules(scenario.getTransitSchedule(), airplaneScenario.getTransitSchedule());
 		mergeVehicles(scenario.getTransitVehicles(), airplaneScenario.getTransitVehicles());
 		
-		Controler controler = new Controler( scenario ) ;
-		controler.addOverridingModule(new SwissRailRaptorModule());
+		Controler controller = new Controler( scenario ) ;
+		controller.addOverridingModule(new SwissRailRaptorModule());
 		
-		controler.addOverridingModule( new AbstractModule(){
+		controller.addOverridingModule( new AbstractModule(){
 			@Override public void install() {
 //				this.bindScoringFunctionFactory().to( MyScoringFunctionFactory.class ) ;
 //				install( new SwissRailRaptorModule() );
@@ -398,7 +398,7 @@ public class RunGermany {
 			}
 		} );
 
-		controler.addOverridingModule(new SimWrapperModule());
+		controller.addOverridingModule(new SimWrapperModule());
 
 		ConfigUtils.writeConfig(scenario.getConfig(), inputDir + "configGermany.xml");
 		
@@ -406,7 +406,7 @@ public class RunGermany {
 		new MatsimVehicleWriter(scenario.getTransitVehicles()).writeFile(inputDir + "GermanyTransitVehicles.xml");
 		new TransitScheduleWriter(scenario.getTransitSchedule()).writeFile(inputDir + "GermanyTransitSchedule.xml");
 		
-		controler.run();
+		controller.run();
 
 	}
 	
