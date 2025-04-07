@@ -61,7 +61,7 @@ public class CreateDemand {
 
 	
 	private static Map<String, Geometry> regions;
-	private static Map <String, EnumeratedDistribution<Geometry>> landcoverPerZone = new HashMap<>();
+	private static final Map <String, EnumeratedDistribution<Geometry>> landcoverPerZone = new HashMap<>();
 	private static Population population;
 	private static final GeometryFactory geometryFactory = new GeometryFactory();
 	
