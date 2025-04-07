@@ -46,123 +46,123 @@ import java.util.List;
 
 public class CreatePtScheduleAndVehiclesFromGtfs {
 
-    private static final Logger log = LogManager.getLogger(RunGTFS2MATSim.class);
+	private static final Logger log = LogManager.getLogger(RunGTFS2MATSim.class);
 
-    public Scenario run(String gtfsZipFile, String date, String networkPrefix) {
+	public Scenario run(String gtfsZipFile, String date, String networkPrefix) {
 
-        final CoordinateTransformation ct = TransformationFactory.getCoordinateTransformation(TransformationFactory.WGS84, "EPSG:31467");
-        final LocalDate localDate = LocalDate.parse(date);
+		final CoordinateTransformation ct = TransformationFactory.getCoordinateTransformation(TransformationFactory.WGS84, "EPSG:31467");
+		final LocalDate localDate = LocalDate.parse(date);
 
-        log.info("GTFS zip file: " + gtfsZipFile);
-        
-        // Convert GTFS to matsim transit schedule
-        Scenario scenario = createScenarioFromGtfsFile(gtfsZipFile, localDate, ct);
+		log.info("GTFS zip file: " + gtfsZipFile);
+
+		// Convert GTFS to matsim transit schedule
+		Scenario scenario = createScenarioFromGtfsFile(gtfsZipFile, localDate, ct);
 //        scenario.getConfig().global().setCoordinateSystem("WGS84");
 //        scenario.getConfig().network().setInputCRS("WGS84");
-        
-        //Create a network around the schedule
+
+		//Create a network around the schedule
 //        new CreatePseudoNetwork(scenario.getTransitSchedule(), scenario.getNetwork(), networkPrefix).createNetwork();
-        
-        //Create simple transit vehicles with a pcu of 0
-        new CreateVehiclesForSchedule(scenario.getTransitSchedule(), scenario.getTransitVehicles()).run();
-        scenario.getTransitVehicles().getVehicleTypes().forEach((id, type) -> type.setPcuEquivalents(0));
-        
-        // correct network
-        scenario.getNetwork().getLinks().values().stream()
-                .filter(this::hasImplausibleLength).forEach(implausibleLink -> {
-            log.warn("Link length is " + implausibleLink.getLength() + ". Adjust link length for link " + implausibleLink.getId());
-            implausibleLink.setLength(1.234);
-        });
 
-        // correct schedule
-        List<Id<TransitStopFacility>> wrongStopIDs = new ArrayList<>();
-        List<Id<TransitLine>> linesWithWrongStopIDs = new ArrayList<>();
+		//Create simple transit vehicles with a pcu of 0
+		new CreateVehiclesForSchedule(scenario.getTransitSchedule(), scenario.getTransitVehicles()).run();
+		scenario.getTransitVehicles().getVehicleTypes().forEach((id, type) -> type.setPcuEquivalents(0));
 
-        scenario.getTransitSchedule().getFacilities().values().stream()
-                .filter(this::hasImplausibleCoordinate)
-                .forEach(implausibleStop -> {
-                    log.warn("Transit stop coordinate is " + implausibleStop.getCoord().toString() + ". Adding stop " + implausibleStop.getId() + " / " + implausibleStop.getName() + " to the list of wrong stops...");
-                    wrongStopIDs.add(implausibleStop.getId());
-                });
+		// correct network
+		scenario.getNetwork().getLinks().values().stream()
+			.filter(this::hasImplausibleLength).forEach(implausibleLink -> {
+				log.warn("Link length is " + implausibleLink.getLength() + ". Adjust link length for link " + implausibleLink.getId());
+				implausibleLink.setLength(1.234);
+			});
 
-        // get lines for these stops
-        for (Id<TransitStopFacility> id : wrongStopIDs) {
-            for (TransitLine line : scenario.getTransitSchedule().getTransitLines().values()) {
-                for (TransitRoute route : line.getRoutes().values()) {
-                    for (TransitRouteStop stop : route.getStops()) {
-                        if (stop.getStopFacility().getId().toString().equals(id.toString())) {
-                            linesWithWrongStopIDs.add(line.getId());
-                        }
-                    }
-                }
-            }
-        }
+		// correct schedule
+		List<Id<TransitStopFacility>> wrongStopIDs = new ArrayList<>();
+		List<Id<TransitLine>> linesWithWrongStopIDs = new ArrayList<>();
 
-        TransitSchedule tS = makeTransitScheduleModifiable(scenario.getTransitSchedule());
+		scenario.getTransitSchedule().getFacilities().values().stream()
+			.filter(this::hasImplausibleCoordinate)
+			.forEach(implausibleStop -> {
+				log.warn("Transit stop coordinate is " + implausibleStop.getCoord().toString() + ". Adding stop " + implausibleStop.getId() + " / " + implausibleStop.getName() + " to the list of wrong stops...");
+				wrongStopIDs.add(implausibleStop.getId());
+			});
 
-        // remove stops
-        for (Id<TransitStopFacility> id : wrongStopIDs) {
-            log.warn("Removing stop Id " + id);
-            tS.getFacilities().remove(id);
-        }
+		// get lines for these stops
+		for (Id<TransitStopFacility> id : wrongStopIDs) {
+			for (TransitLine line : scenario.getTransitSchedule().getTransitLines().values()) {
+				for (TransitRoute route : line.getRoutes().values()) {
+					for (TransitRouteStop stop : route.getStops()) {
+						if (stop.getStopFacility().getId().toString().equals(id.toString())) {
+							linesWithWrongStopIDs.add(line.getId());
+						}
+					}
+				}
+			}
+		}
 
-        // remove lines
-        for (Id<TransitLine> id : linesWithWrongStopIDs) {
-            log.warn("Removing transit line " + id);
-            tS.getTransitLines().remove(id);
-        }
-        
-        return scenario;
-    }
+		TransitSchedule tS = makeTransitScheduleModifiable(scenario.getTransitSchedule());
 
-    private TransitSchedule makeTransitScheduleModifiable(TransitSchedule transitSchedule) {
-        Config config = ConfigUtils.createConfig();
-		Scenario scenario = ScenarioUtils.createScenario(config );
-    	TransitSchedule tS = scenario.getTransitSchedule();
+		// remove stops
+		for (Id<TransitStopFacility> id : wrongStopIDs) {
+			log.warn("Removing stop Id " + id);
+			tS.getFacilities().remove(id);
+		}
 
-        for (TransitStopFacility stop : transitSchedule.getFacilities().values()) {
-            tS.addStopFacility(stop);
-        }
+		// remove lines
+		for (Id<TransitLine> id : linesWithWrongStopIDs) {
+			log.warn("Removing transit line " + id);
+			tS.getTransitLines().remove(id);
+		}
 
-        for (TransitLine line : transitSchedule.getTransitLines().values()) {
-            tS.addTransitLine(line);
-        }
+		return scenario;
+	}
 
-        return tS;
-    }
+	private TransitSchedule makeTransitScheduleModifiable(TransitSchedule transitSchedule) {
+		Config config = ConfigUtils.createConfig();
+		Scenario scenario = ScenarioUtils.createScenario(config);
+		TransitSchedule tS = scenario.getTransitSchedule();
 
-    private Scenario createScenarioFromGtfsFile(String fromFile, LocalDate date, CoordinateTransformation transformation) {
+		for (TransitStopFacility stop : transitSchedule.getFacilities().values()) {
+			tS.addStopFacility(stop);
+		}
 
-        GTFSFeed feed = GTFSFeed.fromFile(fromFile);
-        feed.feedInfo.values().stream().findFirst().ifPresent((feedInfo) -> {
-            System.out.println("Feed start date: " + feedInfo.feed_start_date);
-            System.out.println("Feed end date: " + feedInfo.feed_end_date);
-        });
-        System.out.println("Parsed trips: " + feed.trips.size());
-        System.out.println("Parsed routes: " + feed.routes.size());
-        System.out.println("Parsed stops: " + feed.stops.size());
-        Scenario scenario = ScenarioUtils.createScenario(ConfigUtils.createConfig());
-        GtfsConverter converter = GtfsConverter.newBuilder()
-                .setFeed(feed)
-                .setScenario(scenario)
-                .setTransform(transformation)
-                .setUseExtendedRouteTypes(false)
-                .setDate(date)
-                .build();
-        converter.convert();
-        System.out.println("Converted stops: " + scenario.getTransitSchedule().getFacilities().size());
-        
-        return scenario;
-    }
+		for (TransitLine line : transitSchedule.getTransitLines().values()) {
+			tS.addTransitLine(line);
+		}
 
-    private boolean hasImplausibleCoordinate(TransitStopFacility stop) {
-        return !(stop.getCoord().getX() > Double.NEGATIVE_INFINITY) || !(stop.getCoord().getX() < Double.POSITIVE_INFINITY) ||
-                !(stop.getCoord().getY() > Double.NEGATIVE_INFINITY) || !(stop.getCoord().getY() < Double.POSITIVE_INFINITY);
-    }
+		return tS;
+	}
 
-    private boolean hasImplausibleLength(Link link) {
-        return !(link.getLength() > 0) || !(link.getLength() < Double.POSITIVE_INFINITY);
-    }
+	private Scenario createScenarioFromGtfsFile(String fromFile, LocalDate date, CoordinateTransformation transformation) {
+
+		GTFSFeed feed = GTFSFeed.fromFile(fromFile);
+		feed.feedInfo.values().stream().findFirst().ifPresent((feedInfo) -> {
+			System.out.println("Feed start date: " + feedInfo.feed_start_date);
+			System.out.println("Feed end date: " + feedInfo.feed_end_date);
+		});
+		System.out.println("Parsed trips: " + feed.trips.size());
+		System.out.println("Parsed routes: " + feed.routes.size());
+		System.out.println("Parsed stops: " + feed.stops.size());
+		Scenario scenario = ScenarioUtils.createScenario(ConfigUtils.createConfig());
+		GtfsConverter converter = GtfsConverter.newBuilder()
+			.setFeed(feed)
+			.setScenario(scenario)
+			.setTransform(transformation)
+			.setUseExtendedRouteTypes(false)
+			.setDate(date)
+			.build();
+		converter.convert();
+		System.out.println("Converted stops: " + scenario.getTransitSchedule().getFacilities().size());
+
+		return scenario;
+	}
+
+	private boolean hasImplausibleCoordinate(TransitStopFacility stop) {
+		return !(stop.getCoord().getX() > Double.NEGATIVE_INFINITY) || !(stop.getCoord().getX() < Double.POSITIVE_INFINITY) ||
+			!(stop.getCoord().getY() > Double.NEGATIVE_INFINITY) || !(stop.getCoord().getY() < Double.POSITIVE_INFINITY);
+	}
+
+	private boolean hasImplausibleLength(Link link) {
+		return !(link.getLength() > 0) || !(link.getLength() < Double.POSITIVE_INFINITY);
+	}
 
 }
 

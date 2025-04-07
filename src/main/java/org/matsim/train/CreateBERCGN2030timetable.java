@@ -43,15 +43,15 @@ import org.matsim.pt.utils.CreateVehiclesForSchedule;
 import org.matsim.vehicles.VehicleWriterV1;
 
 /**
-* @author smueller
-*/
+ * @author smueller
+ */
 
 public class CreateBERCGN2030timetable {
 
 	public static void main(String[] args) {
 		Config config = ConfigUtils.createConfig();
 		Scenario scenario = ScenarioUtils.createScenario(config);
-		
+
 		TransitScheduleFactory tsf = scenario.getTransitSchedule().getFactory();
 		TransitStopFacility stopBerlin = tsf.createTransitStopFacility(Id.create("Berlin Hbf 2030", TransitStopFacility.class), CoordUtils.createCoord(3796562.713066836, 5830370.508157048), false);
 		TransitStopFacility stopSpandau = tsf.createTransitStopFacility(Id.create("Berlin Spandau 2030", TransitStopFacility.class), CoordUtils.createCoord(3784794.804324691, 5830681.959281431), false);
@@ -59,7 +59,7 @@ public class CreateBERCGN2030timetable {
 		scenario.getTransitSchedule().addStopFacility(stopBerlin);
 		scenario.getTransitSchedule().addStopFacility(stopSpandau);
 		scenario.getTransitSchedule().addStopFacility(stopKoeln);
-		
+
 		TransitLine line = tsf.createTransitLine(Id.create("ICE Berlin Koeln 2030", TransitLine.class));
 		List<TransitRouteStop> stops = new ArrayList<>();
 		TransitRouteStop routeStopBerlin = tsf.createTransitRouteStop(stopBerlin, 0, 0);
@@ -68,7 +68,7 @@ public class CreateBERCGN2030timetable {
 		stops.add(routeStopBerlin);
 		stops.add(routeStopSpandau);
 		stops.add(routeStopKoeln);
-		TransitRoute route = tsf.createTransitRoute(Id.create("ICE Berlin Koeln 2030", TransitRoute.class), null, stops , "rail");
+		TransitRoute route = tsf.createTransitRoute(Id.create("ICE Berlin Koeln 2030", TransitRoute.class), null, stops, "rail");
 		for (int ii = 5 * 3600; ii <= 21 * 3600; ii = ii + 1800) {
 			Departure departure = tsf.createDeparture(Id.create(ii, Departure.class), ii);
 			route.addDeparture(departure);
@@ -76,15 +76,15 @@ public class CreateBERCGN2030timetable {
 		}
 		line.addRoute(route);
 		scenario.getTransitSchedule().addTransitLine(line);
-		
-		
+
+
 		new CreatePseudoNetwork(scenario.getTransitSchedule(), scenario.getNetwork(), "2030_").createNetwork();
 		new CreateVehiclesForSchedule(scenario.getTransitSchedule(), scenario.getTransitVehicles()).run();
 		RunGTFS2MATSim.setLinkSpeedsToMax(scenario);
 		new VehicleWriterV1(scenario.getTransitVehicles()).writeFile("2030_transitVehicles.xml.gz");
 		new TransitScheduleWriterV2(scenario.getTransitSchedule()).write("2030_transitSchedule.xml.gz");
 		new NetworkWriter(scenario.getNetwork()).write("2030_network.xml.gz");
-		
+
 	}
 
 }

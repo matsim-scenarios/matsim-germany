@@ -48,7 +48,7 @@ public class AirplaneTrainSwitcherIndividualRaptorParametersForPerson implements
 		double marginalUtilityOfPerforming = scoringParameters.marginalUtilityOfPerforming_s;
 
 		raptorParameters.setMarginalUtilityOfWaitingPt_utl_s(
-				scoringParameters.marginalUtilityOfWaitingPt_s - marginalUtilityOfPerforming);
+			scoringParameters.marginalUtilityOfWaitingPt_s - marginalUtilityOfPerforming);
 
 		ScoringConfigGroup pcsConfig = config.scoring();
 
@@ -61,7 +61,7 @@ public class AirplaneTrainSwitcherIndividualRaptorParametersForPerson implements
 				if ((mode.equals(TransportMode.airplane) || mode.equals("longDistanceTrain")) && random.nextBoolean()) {
 					// our addition: switch off by random usage of airplane
 					raptorParameters.setMarginalUtilityOfTravelTime_utl_s(mode,
-							1000000.0d * (modeParams.marginalUtilityOfTraveling_s - marginalUtilityOfPerforming));
+						1000000.0d * (modeParams.marginalUtilityOfTraveling_s - marginalUtilityOfPerforming));
 //					if (mode.equals(TransportMode.airplane)) {
 //						log.fatal("switching off airplane by setting very high MarginalUtilityOfTravelTime_utl_s");
 //					}
@@ -71,7 +71,7 @@ public class AirplaneTrainSwitcherIndividualRaptorParametersForPerson implements
 				} else {
 					// default: copy from PlanCalcScoreConfigGroup
 					raptorParameters.setMarginalUtilityOfTravelTime_utl_s(mode,
-							modeParams.marginalUtilityOfTraveling_s - marginalUtilityOfPerforming);
+						modeParams.marginalUtilityOfTraveling_s - marginalUtilityOfPerforming);
 				}
 			}
 		}

@@ -19,7 +19,7 @@
  *                                                                         *
  * *********************************************************************** */
 
- package org.matsim.run;
+package org.matsim.run;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,9 +33,8 @@ import org.matsim.core.router.MainModeIdentifier;
 /**
  * Attempt to provide a {@link MainModeIdentifier} that is justified from the transport engineering perspective, not from the
  * software perspective.
- * 
- * @author nagel
  *
+ * @author nagel
  */
 public final class MyMainModeIdentifier implements AnalysisMainModeIdentifier {
 	// I am against other people changing this lightheartedly since some of my analysis depends on it.  So either please discuss,
@@ -43,50 +42,50 @@ public final class MyMainModeIdentifier implements AnalysisMainModeIdentifier {
 
 	// yyyyyy some variant of this (maybe not exactly this one here) should be able to deal with multi-leg trips.  kai/amit, mar'17
 
-	private final List<String> modeHierarchy = new ArrayList<>() ;
+	private final List<String> modeHierarchy = new ArrayList<>();
 
 	public MyMainModeIdentifier() {
-		modeHierarchy.add( TransportMode.non_network_walk ) ;
-		modeHierarchy.add( "undefined" ) ;
-		modeHierarchy.add( TransportMode.other ) ;
-		modeHierarchy.add( TransportMode.transit_walk ) ;
-		modeHierarchy.add( TransportMode.walk ) ;
-		modeHierarchy.add( TransportMode.bike ) ;
-		modeHierarchy.add( TransportMode.drt ) ;
-		modeHierarchy.add( TransportMode.pt ) ;
-		modeHierarchy.add( TransportMode.ride ) ;
-		modeHierarchy.add( TransportMode.car ) ;
-		modeHierarchy.add( "localPublicTransport" ) ;
-		modeHierarchy.add( "regionalTrain" ) ;
-		modeHierarchy.add( "longDistanceTrain" ) ;
+		modeHierarchy.add(TransportMode.non_network_walk);
+		modeHierarchy.add("undefined");
+		modeHierarchy.add(TransportMode.other);
+		modeHierarchy.add(TransportMode.transit_walk);
+		modeHierarchy.add(TransportMode.walk);
+		modeHierarchy.add(TransportMode.bike);
+		modeHierarchy.add(TransportMode.drt);
+		modeHierarchy.add(TransportMode.pt);
+		modeHierarchy.add(TransportMode.ride);
+		modeHierarchy.add(TransportMode.car);
+		modeHierarchy.add("localPublicTransport");
+		modeHierarchy.add("regionalTrain");
+		modeHierarchy.add("longDistanceTrain");
 //		modeHierarchy.add( TransportMode.train ) ;
-		modeHierarchy.add( TransportMode.airplane ) ;
+		modeHierarchy.add(TransportMode.airplane);
 
-		
-		
+
 		// NOTE: This hierarchical stuff is not so great: is park-n-ride a car trip or a pt trip?  Could weigh it by distance, or by time spent
 		// in respective mode.  Or have combined modes as separate modes.  In any case, can't do it at the leg level, since it does not
 		// make sense to have the system calibrate towards something where we have counted the car and the pt part of a multimodal
 		// trip as two separate trips. kai, sep'16
 	}
 
-	@Override public String identifyMainMode( List<? extends PlanElement> planElements ) {
-		int mainModeIndex = -1 ;
-		for ( PlanElement pe : planElements ) {
-			if ( pe instanceof Leg ) {
-				Leg leg = (Leg) pe ;
-				int index = modeHierarchy.indexOf( leg.getMode() ) ;
-				if ( index < 0 ) {
-					throw new RuntimeException("unknown mode=" + leg.getMode() ) ;
+	@Override
+	public String identifyMainMode(List<? extends PlanElement> planElements) {
+		int mainModeIndex = -1;
+		for (PlanElement pe : planElements) {
+			if (pe instanceof Leg) {
+				Leg leg = (Leg) pe;
+				int index = modeHierarchy.indexOf(leg.getMode());
+				if (index < 0) {
+					throw new RuntimeException("unknown mode=" + leg.getMode());
 				}
-				if ( index > mainModeIndex ) {
-					mainModeIndex = index ;
+				if (index > mainModeIndex) {
+					mainModeIndex = index;
 				}
 			}
 		}
-		if ( mainModeIndex <= modeHierarchy.indexOf( TransportMode.transit_walk ) ) {
-			mainModeIndex = modeHierarchy.indexOf( TransportMode.walk ) ;
+		if (mainModeIndex <= modeHierarchy.indexOf(TransportMode.transit_walk)) {
+			mainModeIndex = modeHierarchy.indexOf(TransportMode.walk);
 		}
-		return modeHierarchy.get( mainModeIndex ) ;
+		return modeHierarchy.get(mainModeIndex);
 	}
 }
