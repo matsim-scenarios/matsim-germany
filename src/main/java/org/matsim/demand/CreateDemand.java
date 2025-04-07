@@ -265,6 +265,7 @@ public class CreateDemand {
 		int index = population.getPersons().size();
 		Id<Person> id = Id.createPersonId(originZone + "---" + destinationZone + "---" + mode + "---" + index);
 		Person person = populationFactory.createPerson(id);
+		PopulationUtils.putSubpopulation(person, "personGermanyModel");
 		population.addPerson(person);
 		
 		Plan plan = populationFactory.createPlan();
