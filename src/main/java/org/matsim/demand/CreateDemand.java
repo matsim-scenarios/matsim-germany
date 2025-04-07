@@ -51,7 +51,9 @@ import org.matsim.api.core.v01.population.PopulationWriter;
 import org.matsim.application.options.ShpOptions;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.population.PopulationUtils;
+import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.geotools.MGC;
+import org.matsim.core.utils.geometry.transformations.TransformationFactory;
 
 /**
 * @author smueller
@@ -453,7 +455,8 @@ public class CreateDemand {
 		Geometry selectedLandcover = landcoverPerZone.get(zone).sample();
 
 		Point point = selectedLandcover.getInteriorPoint();
-//		if (counter < 100000) {
+		CoordinateTransformation tf = TransformationFactory.getCoordinateTransformation("EPSG:31467", "EPSG:25832");
+        //		if (counter < 100000) {
 //		// if the landcoverPerZone feature is in the correct region generate a random coordinate within the bounding box of the
 //		// landcoverPerZone feature. Repeat until a coordinate is found which is actually within the landcoverPerZone feature.
 //
@@ -464,7 +467,7 @@ public class CreateDemand {
 //				y = envelope.getMinY() + envelope.getHeight() * random.nextDouble();
 //				point = geometryFactory.createPoint(new Coordinate(x, y));
 //			} while (point == null || !selectedLandcover.contains(point));
-			return MGC.point2Coord(point); }
+			return tf.transform(MGC.point2Coord(point)); }
 		
 //		else {
 //			return new Coord(region.getCentroid().getX(), region.getCentroid().getY() );
