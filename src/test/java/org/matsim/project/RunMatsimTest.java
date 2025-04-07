@@ -18,10 +18,11 @@
  * *********************************************************************** */
 package org.matsim.project;
 
-import org.apache.log4j.Logger;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.matsim.testcases.MatsimTestUtils;
 
 /**
@@ -29,23 +30,25 @@ import org.matsim.testcases.MatsimTestUtils;
  *
  */
 public class RunMatsimTest{
-	
-	@Rule public MatsimTestUtils utils = new MatsimTestUtils() ;
+	private static final Logger log = LogManager.getLogger(RunMatsimTest.class);
+
+	@RegisterExtension
+	public MatsimTestUtils utils = new MatsimTestUtils() ;
 
 	@Test
 	public final void test() {
 		try {
 			String [] args = {"scenarios/equil/config.xml",
-				  "--config:controler.outputDirectory", utils.getOutputDirectory(),
-				  "--config:controler.lastIteration=1",
-				  "--config:controler.writeEventsInterval=1"
+				  "--config:controller.outputDirectory", utils.getOutputDirectory(),
+				  "--config:controller.lastIteration=1",
+				  "--config:controller.writeEventsInterval=1"
 			} ;
 			RunMatsim.main( args ) ;
 		} catch ( Exception ee ) {
-			Logger.getLogger(this.getClass()).fatal("there was an exception: \n" + ee ) ;
+            log.fatal("there was an exception: \n{}", String.valueOf(ee));
 
 			// if one catches an exception, then one needs to explicitly fail the test:
-			Assert.fail();
+			Assertions.fail();
 		}
 
 

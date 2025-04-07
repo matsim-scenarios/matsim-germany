@@ -4,17 +4,17 @@ import ch.sbb.matsim.config.SwissRailRaptorConfigGroup;
 import ch.sbb.matsim.routing.pt.raptor.RaptorParameters;
 import ch.sbb.matsim.routing.pt.raptor.RaptorParametersForPerson;
 import ch.sbb.matsim.routing.pt.raptor.RaptorUtils;
+import com.google.inject.Inject;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.population.Person;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
-import org.matsim.core.config.groups.PlanCalcScoreConfigGroup;
+import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.gbl.MatsimRandom;
 import org.matsim.core.scoring.functions.ModeUtilityParameters;
 import org.matsim.core.scoring.functions.ScoringParameters;
 import org.matsim.core.scoring.functions.ScoringParametersForPerson;
 
-import javax.inject.Inject;
 import java.util.Map;
 import java.util.Random;
 
@@ -50,9 +50,9 @@ public class AirplaneTrainSwitcherIndividualRaptorParametersForPerson implements
 		raptorParameters.setMarginalUtilityOfWaitingPt_utl_s(
 				scoringParameters.marginalUtilityOfWaitingPt_s - marginalUtilityOfPerforming);
 
-		PlanCalcScoreConfigGroup pcsConfig = config.planCalcScore();
+		ScoringConfigGroup pcsConfig = config.scoring();
 
-		for (Map.Entry<String, PlanCalcScoreConfigGroup.ModeParams> e : pcsConfig.getModes().entrySet()) {
+		for (Map.Entry<String, ScoringConfigGroup.ModeParams> e : pcsConfig.getModes().entrySet()) {
 			String mode = e.getKey();
 			ModeUtilityParameters modeParams = scoringParameters.modeParams.get(mode);
 

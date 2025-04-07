@@ -35,12 +35,12 @@ import org.matsim.api.core.v01.population.Leg;
 import org.matsim.api.core.v01.population.Person;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
-import org.matsim.core.config.groups.PlansCalcRouteConfigGroup;
+import org.matsim.core.config.groups.ReplanningConfigGroup;
+import org.matsim.core.config.groups.RoutingConfigGroup;
+import org.matsim.core.config.groups.ScoringConfigGroup;
 import org.matsim.core.config.groups.VspExperimentalConfigGroup;
-import org.matsim.core.config.groups.PlanCalcScoreConfigGroup.ActivityParams;
-import org.matsim.core.config.groups.PlanCalcScoreConfigGroup.ModeParams;
 import org.matsim.core.config.groups.QSimConfigGroup.TrafficDynamics;
-import org.matsim.core.config.groups.StrategyConfigGroup.StrategySettings;
+import org.matsim.core.config.groups.ReplanningConfigGroup.StrategySettings;
 import org.matsim.core.controler.AbstractModule;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.controler.OutputDirectoryHierarchy.OverwriteFileSetting;
@@ -124,9 +124,9 @@ public class RunGermany {
 		String[] typedArgs = Arrays.copyOfRange( args, 1, args.length );
 		Config config = ConfigUtils.loadConfig(inputDir + "germanyConfig.xml");
 		
-		config.controler().setLastIteration(100);
-		config.controler().setOverwriteFileSetting(OverwriteFileSetting.failIfDirectoryExists);
-		config.controler().setOutputDirectory(inputDir + "/Output");
+		config.controller().setLastIteration(100);
+		config.controller().setOverwriteFileSetting(OverwriteFileSetting.failIfDirectoryExists);
+		config.controller().setOutputDirectory(inputDir + "/Output");
 //		config.controler().setRunId(runid);
 
 		config.global().setCoordinateSystem("EPSG:31467");
@@ -134,16 +134,16 @@ public class RunGermany {
 				
 		Collection<String> networkModes = new HashSet<>();
 		networkModes.add("car");
-		config.plansCalcRoute().setNetworkModes(networkModes);
+		config.routing().setNetworkModes(networkModes);
 		
 //		we are only scoring trips
-		config.planCalcScore().addActivityParams(new ActivityParams("origin").setScoringThisActivityAtAll(false));
-		config.planCalcScore().addActivityParams(new ActivityParams("shop").setScoringThisActivityAtAll(false));
-		config.planCalcScore().addActivityParams(new ActivityParams("business").setScoringThisActivityAtAll(false));
-		config.planCalcScore().addActivityParams(new ActivityParams("holiday").setScoringThisActivityAtAll(false));
-		config.planCalcScore().addActivityParams(new ActivityParams("work").setScoringThisActivityAtAll(false));
-		config.planCalcScore().addActivityParams(new ActivityParams("education").setScoringThisActivityAtAll(false));
-		config.planCalcScore().addActivityParams(new ActivityParams("other").setScoringThisActivityAtAll(false));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("origin").setScoringThisActivityAtAll(false));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("shop").setScoringThisActivityAtAll(false));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("business").setScoringThisActivityAtAll(false));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("holiday").setScoringThisActivityAtAll(false));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("work").setScoringThisActivityAtAll(false));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("education").setScoringThisActivityAtAll(false));
+		config.scoring().addActivityParams(new ScoringConfigGroup.ActivityParams("other").setScoringThisActivityAtAll(false));
 				
 		config.qsim().setStartTime(0);
 		config.qsim().setEndTime(36. * 3600);
@@ -152,15 +152,15 @@ public class RunGermany {
 		
 		// vsp defaults
 		config.vspExperimental().setVspDefaultsCheckingLevel( VspExperimentalConfigGroup.VspDefaultsCheckingLevel.info );
-		config.plansCalcRoute().setAccessEgressType(PlansCalcRouteConfigGroup.AccessEgressType.accessEgressModeToLink);
+		config.routing().setAccessEgressType(RoutingConfigGroup.AccessEgressType.accessEgressModeToLink);
 		config.qsim().setUsingTravelTimeCheckInTeleportation( true );
 		config.qsim().setTrafficDynamics( TrafficDynamics.kinematicWaves );
 		
-		config.strategy().setFractionOfIterationsToDisableInnovation(0.8);
-		config.strategy().setMaxAgentPlanMemorySize(10);	
-		config.strategy().clearStrategySettings();
-		
-		StrategySettings stratSetsReRoute = new StrategySettings();
+		config.replanning().setFractionOfIterationsToDisableInnovation(0.8);
+		config.replanning().setMaxAgentPlanMemorySize(10);
+		config.replanning().clearStrategySettings();
+
+		ReplanningConfigGroup.StrategySettings stratSetsReRoute = new ReplanningConfigGroup.StrategySettings();
 		stratSetsReRoute.setStrategyName(DefaultStrategy.ReRoute);
 		stratSetsReRoute.setWeight(0.05);
 		
@@ -168,8 +168,8 @@ public class RunGermany {
 //		stratSetsTimeAllocation.setStrategyName(DefaultStrategy.TimeAllocationMutator_ReRoute);
 //		stratSetsTimeAllocation.setWeight(0.05);
 //		config.timeAllocationMutator().setMutationRange(600.);
-		
-		StrategySettings stratSetsChangeTripMode = new StrategySettings();
+
+		ReplanningConfigGroup.StrategySettings stratSetsChangeTripMode = new ReplanningConfigGroup.StrategySettings();
 		stratSetsChangeTripMode.setStrategyName(DefaultStrategy.ChangeTripMode);
 		stratSetsChangeTripMode.setWeight(0.05);
 		
@@ -182,10 +182,10 @@ public class RunGermany {
 		stratSetsChangeExpBeta.setStrategyName(DefaultSelector.ChangeExpBeta);
 		stratSetsChangeExpBeta.setWeight(0.9);
 		
-		config.strategy().addStrategySettings(stratSetsReRoute);
-//		config.strategy().addStrategySettings(stratSetsTimeAllocation);
-		config.strategy().addStrategySettings(stratSetsChangeExpBeta);
-		config.strategy().addStrategySettings(stratSetsChangeTripMode);
+		config.replanning().addStrategySettings(stratSetsReRoute);
+//		config.replanning().addStrategySettings(stratSetsTimeAllocation);
+		config.replanning().addStrategySettings(stratSetsChangeExpBeta);
+		config.replanning().addStrategySettings(stratSetsChangeTripMode);
 		
 		config.network().setInputFile(inputNetworkRoads);
 		
@@ -283,12 +283,12 @@ public class RunGermany {
 		srrConfig.addIntermodalAccessEgress(intermodalAccessEgressParameterSetWalk);
 		
 		config.addModule(srrConfig);
-		
-		ModeParams scoreCar = config.planCalcScore().getModes().get(TransportMode.car);
+
+		ScoringConfigGroup.ModeParams scoreCar = config.scoring().getModes().get(TransportMode.car);
 		scoreCar.setMonetaryDistanceRate(-0.0001);
 		scoreCar.setMarginalUtilityOfTraveling(-6);
-		
-		ModeParams scorePt = config.planCalcScore().getModes().get(TransportMode.pt);
+
+		ScoringConfigGroup.ModeParams scorePt = config.scoring().getModes().get(TransportMode.pt);
 		
 //		ModeParams scoreTrain = new ModeParams(TransportMode.train);
 //		scoreTrain.setConstant(scorePt.getConstant());
@@ -297,43 +297,43 @@ public class RunGermany {
 //		scoreTrain.setMarginalUtilityOfDistance(scorePt.getMarginalUtilityOfDistance());
 //		scoreTrain.setMarginalUtilityOfTraveling(scorePt.getMarginalUtilityOfTraveling());
 //		scoreTrain.setMonetaryDistanceRate(-0.0001);
-//		config.planCalcScore().addModeParams(scoreTrain);
-		
-		ModeParams scoreLongDistanceTrain = new ModeParams(longDistanceTrain);
+//		config.scoring().addModeParams(scoreTrain);
+
+		ScoringConfigGroup.ModeParams scoreLongDistanceTrain = new ScoringConfigGroup.ModeParams(longDistanceTrain);
 		scoreLongDistanceTrain.setConstant(-6);
 		scoreLongDistanceTrain.setDailyMonetaryConstant(scorePt.getDailyMonetaryConstant());
 		scoreLongDistanceTrain.setDailyUtilityConstant(scorePt.getDailyUtilityConstant());
 		scoreLongDistanceTrain.setMarginalUtilityOfDistance(scorePt.getMarginalUtilityOfDistance());
 		scoreLongDistanceTrain.setMarginalUtilityOfTraveling(-3);
 		scoreLongDistanceTrain.setMonetaryDistanceRate(-0.0001);
-		config.planCalcScore().addModeParams(scoreLongDistanceTrain);
-		
-		ModeParams scoreRegionalTrain = new ModeParams(regionalTrain);
+		config.scoring().addModeParams(scoreLongDistanceTrain);
+
+		ScoringConfigGroup.ModeParams scoreRegionalTrain = new ScoringConfigGroup.ModeParams(regionalTrain);
 		scoreRegionalTrain.setConstant(scorePt.getConstant());
 		scoreRegionalTrain.setDailyMonetaryConstant(scorePt.getDailyMonetaryConstant());
 		scoreRegionalTrain.setDailyUtilityConstant(scorePt.getDailyUtilityConstant());
 		scoreRegionalTrain.setMarginalUtilityOfDistance(scorePt.getMarginalUtilityOfDistance());
 		scoreRegionalTrain.setMarginalUtilityOfTraveling(-3);
 		scoreRegionalTrain.setMonetaryDistanceRate(-0.0001);
-		config.planCalcScore().addModeParams(scoreRegionalTrain);
-		
-		ModeParams scoreLocalPublicTransport = new ModeParams(localPublicTransport);
+		config.scoring().addModeParams(scoreRegionalTrain);
+
+		ScoringConfigGroup.ModeParams scoreLocalPublicTransport = new ScoringConfigGroup.ModeParams(localPublicTransport);
 		scoreLocalPublicTransport.setConstant(scorePt.getConstant());
 		scoreLocalPublicTransport.setDailyMonetaryConstant(scorePt.getDailyMonetaryConstant());
 		scoreLocalPublicTransport.setDailyUtilityConstant(scorePt.getDailyUtilityConstant());
 		scoreLocalPublicTransport.setMarginalUtilityOfDistance(scorePt.getMarginalUtilityOfDistance());
 		scoreLocalPublicTransport.setMarginalUtilityOfTraveling(-3);
 		scoreLocalPublicTransport.setMonetaryDistanceRate(0);
-		config.planCalcScore().addModeParams(scoreLocalPublicTransport);
-		
-		ModeParams scoreAirplane = new ModeParams(TransportMode.airplane);
+		config.scoring().addModeParams(scoreLocalPublicTransport);
+
+		ScoringConfigGroup.ModeParams scoreAirplane = new ScoringConfigGroup.ModeParams(TransportMode.airplane);
 		scoreAirplane.setConstant(-15);
 		scoreAirplane.setDailyMonetaryConstant(scorePt.getDailyMonetaryConstant());
 		scoreAirplane.setDailyUtilityConstant(scorePt.getDailyUtilityConstant());
 		scoreAirplane.setMarginalUtilityOfDistance(scorePt.getMarginalUtilityOfDistance());
 		scoreAirplane.setMarginalUtilityOfTraveling(-6);
 		scoreAirplane.setMonetaryDistanceRate(-0.0001);
-		config.planCalcScore().addModeParams(scoreAirplane);
+		config.scoring().addModeParams(scoreAirplane);
 		
 		ConfigUtils.applyCommandline( config, typedArgs ) ;
 		Scenario scenario = ScenarioUtils.loadScenario(config) ;
@@ -382,7 +382,7 @@ public class RunGermany {
 		airplaneConfig.transit().setVehiclesFile(inputDir + inputVehiclesPlane);
 		Scenario airplaneScenario = ScenarioUtils.loadScenario(airplaneConfig);
 		airplaneScenario.getTransitSchedule().getTransitLines().values().forEach(line -> line.getRoutes().values().forEach(route -> route.setTransportMode(TransportMode.airplane)));
-		airplaneScenario.getTransitSchedule().getFacilities().values().forEach(stop -> TransitScheduleUtils.putStopFacilityAttribute(stop, "type", "airport"));
+		airplaneScenario.getTransitSchedule().getFacilities().values().forEach(stop -> stop.getAttributes().putAttribute("type", "airport"));
 		mergeSchedules(scenario.getTransitSchedule(), airplaneScenario.getTransitSchedule());
 		mergeVehicles(scenario.getTransitVehicles(), airplaneScenario.getTransitVehicles());
 		
