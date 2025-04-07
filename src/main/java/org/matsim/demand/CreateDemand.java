@@ -18,10 +18,8 @@
  *                                                                         *
  * *********************************************************************** */
 
-
 package org.matsim.demand;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.charset.StandardCharsets;
@@ -54,6 +52,7 @@ import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.geotools.MGC;
 import org.matsim.core.utils.geometry.transformations.TransformationFactory;
+import org.matsim.core.utils.io.IOUtils;
 
 /**
 * @author smueller
@@ -96,12 +95,12 @@ public class CreateDemand {
 		}
 		
 		weightedGeometriesPerZones.forEach((thisZone,  geometryPairs)-> landcoverPerZone.put(thisZone,new EnumeratedDistribution<>(geometryPairs))); ;
-		File demandInput = new File("../shared-svn/studies/countries/de/prognose_2030/PVMatrix_BVWP15_A2010/SM_PVMatrix_BVWP15_A2010.csv");
+		String demandInput = "../shared-svn/studies/countries/de/prognose_2030/PVMatrix_BVWP15_A2010/SM_PVMatrix_BVWP15_A2010.csv";
 		// read the bvwp csv file
-		try (CSVParser parser = CSVParser.parse(demandInput, StandardCharsets.UTF_8, CSVFormat.newFormat(';').withFirstRecordAsHeader())) {
+		try (CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader().setSkipHeaderRecord(true).build().parse(IOUtils.getBufferedReader(demandInput))) {
 
 			// this will iterate over every line in the csv except the first one which contains the column headers
-			for (CSVRecord record : parser) {				
+			for (CSVRecord record : parser) {
 				
 				String originZone = record.get("Quelle_Nuts3");
 				String destinationZone = record.get("Ziel_Nuts3");
