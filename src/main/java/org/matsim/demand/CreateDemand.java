@@ -45,7 +45,6 @@ import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.Plan;
 import org.matsim.api.core.v01.population.Population;
 import org.matsim.api.core.v01.population.PopulationFactory;
-import org.matsim.api.core.v01.population.PopulationWriter;
 import org.matsim.application.options.ShpOptions;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.population.PopulationUtils;
@@ -216,9 +215,7 @@ public class CreateDemand {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		
-		PopulationWriter populationWriter = new PopulationWriter(population);
-		populationWriter.write(outputPopulationFile);
+		PopulationUtils.writePopulation(population, outputPopulationFile);
 		return population;
 	}
 
