@@ -26,22 +26,22 @@ import java.net.MalformedURLException;
 import org.matsim.api.core.v01.population.Population;
 
 /**
-* @author smueller
-*/
+ * @author smueller
+ */
 
 public class RunCreateDemand {
 
 	public static void main(String[] args) {
-		
+
 		boolean train = false;
 		boolean car = true;
 		boolean airplane = false;
 		boolean pt = false;
 		boolean bike = false;
 		boolean walk = false;
-		
+
 		double sample = 0.001;
-		
+
 		String outputPopulationFile = "output/onlyCar" + getSampleNameOfOutputFolder(sample) + "pct.xml.gz";
 
 		try {

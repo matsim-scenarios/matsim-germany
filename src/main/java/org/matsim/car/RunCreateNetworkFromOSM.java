@@ -6,6 +6,7 @@ import org.matsim.core.network.io.NetworkWriter;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.transformations.TransformationFactory;
 import org.matsim.core.utils.io.OsmNetworkReader;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -35,7 +36,7 @@ public class RunCreateNetworkFromOSM {
 		Network network = NetworkUtils.createNetwork();
 
 		CoordinateTransformation transformation = TransformationFactory.getCoordinateTransformation(
-				TransformationFactory.WGS84, UTM32nAsEpsg
+			TransformationFactory.WGS84, UTM32nAsEpsg
 		);
 
 		// create an osm network reader with a filter

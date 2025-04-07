@@ -16,6 +16,7 @@
  *   See also COPYING, LICENSE and WARRANTY file                           *
  *                                                                         *
  * *********************************************************************** */
+
 package org.matsim.project;
 
 import org.matsim.api.core.v01.Scenario;
@@ -27,39 +28,38 @@ import org.matsim.core.scenario.ScenarioUtils;
 
 /**
  * @author nagel
- *
  */
-public class RunMatsim{
+public class RunMatsim {
 
 	public static void main(String[] args) {
-		if ( args.length==0 ) {
-			args = new String [] { "scenarios/equil/config.xml" } ;
+		if (args.length == 0) {
+			args = new String[]{"scenarios/equil/config.xml"};
 			// to make sure that something is run by default; better start from MATSimGUI.
 		} else {
-			Gbl.assertIf( args[0] != null && !args[0].equals( "" ) );
+			Gbl.assertIf(args[0] != null && !args[0].equals(""));
 		}
 
-		Config config = ConfigUtils.loadConfig( args ) ;
-		
+		Config config = ConfigUtils.loadConfig(args);
+
 		// possibly modify config here
-		
+
 		// ---
-		
-		Scenario scenario = ScenarioUtils.loadScenario(config) ;
-		
+
+		Scenario scenario = ScenarioUtils.loadScenario(config);
+
 		// possibly modify scenario here
-		
+
 		// ---
-		
-		Controler controler = new Controler( scenario ) ;
-		
+
+		Controler controler = new Controler(scenario);
+
 		// possibly modify controler here
 
 //		controler.addOverridingModule( new OTFVisLiveModule() ) ;
-		
+
 		// ---
-		
+
 		controler.run();
 	}
-	
+
 }
