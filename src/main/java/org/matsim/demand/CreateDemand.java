@@ -34,6 +34,8 @@ import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.math3.distribution.EnumeratedDistribution;
 import org.apache.commons.math3.util.Pair;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.geotools.api.feature.simple.SimpleFeature;
 import org.locationtech.jts.geom.*;
 import org.matsim.api.core.v01.Coord;
@@ -68,7 +70,9 @@ public class CreateDemand {
 	
 	
 	public static Population create(String outputPopulationFile, double sample, boolean train, boolean car, boolean airplane, boolean pt, boolean bike, boolean walk) throws MalformedURLException {
-//		String shpNUTS3 = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/germany/original_data/shapes/NUTS3/NUTS3_2010_DE.shp";
+		Configurator.setLevel("org.matsim.core.utils.geometry.geotools.MGC", Level.ERROR);
+
+		//		String shpNUTS3 = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/germany/original_data/shapes/NUTS3/NUTS3_2010_DE.shp";
 		String shpNUTS3 = "../public-svn/matsim/scenarios/countries/de/germany/original_data/shapes/NUTS3/NUTS3_2010_DE.shp";
 		ShpOptions shpOptionsNUTS = new ShpOptions(shpNUTS3,"EPSG:4326", StandardCharsets.ISO_8859_1);
 		ShpOptions.Index indexNUTS = shpOptionsNUTS.createIndex("NUTS_ID");
