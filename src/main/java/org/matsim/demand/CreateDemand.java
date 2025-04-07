@@ -175,52 +175,31 @@ public class CreateDemand {
 
                     String[] splitColumn = csvColumn.split("_");
 
-                    switch (splitColumn[0]) {
-                        case "Bahn":
+                    mode = switch (splitColumn[0]) {
+                        case "Bahn" ->
 //						mode = TransportMode.train;
-                            mode = "longDistancePt";
-                            break;
-                        case "MIV":
-                            mode = TransportMode.car;
-                            break;
-                        case "Luft":
+                                "longDistancePt";
+                        case "MIV" -> TransportMode.car;
+                        case "Luft" ->
 //						mode = TransportMode.airplane;
-                            mode = "longDistancePt";
-                            break;
-                        case "OESPV":
+                                "longDistancePt";
+                        case "OESPV" ->
 //						mode = TransportMode.pt;
-                            mode = "longDistancePt";
-                            break;
-                        case "Rad":
-                            mode = TransportMode.bike;
-                            break;
-                        case "Fuss":
-                            mode = TransportMode.walk;
-                            break;
+                                "longDistancePt";
+                        case "Rad" -> TransportMode.bike;
+                        case "Fuss" -> TransportMode.walk;
+                        default -> throw new IllegalStateException("Unexpected value in column 0: " + splitColumn[0]);
+                    };
 
-                    }
-
-                    switch (splitColumn[1]) {
-                        case "Fz1":
-                            nextActType = "work";
-                            break;
-                        case "Fz2":
-                            nextActType = "education";
-                            break;
-                        case "Fz3":
-                            nextActType = "shop";
-                            break;
-                        case "Fz4":
-                            nextActType = "business";
-                            break;
-                        case "Fz5":
-                            nextActType = "holiday";
-                            break;
-                        case "Fz6":
-                            nextActType = "other";
-                            break;
-
-                    }
+                    nextActType = switch (splitColumn[1]) {
+                        case "Fz1" -> "work";
+                        case "Fz2" -> "education";
+                        case "Fz3" -> "shop";
+                        case "Fz4" -> "business";
+                        case "Fz5" -> "holiday";
+                        case "Fz6" -> "other";
+                        default -> throw new IllegalStateException("Unexpected value in column 1: " + splitColumn[1]);
+                    };
 
                     if (!originZone.equals(destinationZone)) {
 //					agents travelling from Berlin to Munich + Umland
@@ -241,7 +220,6 @@ public class CreateDemand {
 		PopulationWriter populationWriter = new PopulationWriter(population);
 		populationWriter.write(outputPopulationFile);
 		return population;
-		
 	}
 
 
