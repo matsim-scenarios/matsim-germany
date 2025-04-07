@@ -79,6 +79,8 @@ public class RunGermany {
 //	contains all primary, trunk and motorway roads from osm
 //	private static final String inputNetworkRoads = 		 "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/germany/input/network_osm_primary.xml.gz";
 	private static final String inputNetworkRoads = 		 "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/germany/input/network_osm_secondary.xml.gz";
+//	private static final String inputNetworkRoads = 		 "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/germany/input/network_osm_secondary.xml.gz";
+//	private static final String inputNetworkRoads = 		 "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/germany-europe-network.xml.gz";
 
 	//	contains all db ice and ic services from 2016 from gtfs data
 //	private static final String inputNetworkTrain =		 	 "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/germany/input/2016_DB_GTFS_network.xml.gz";
