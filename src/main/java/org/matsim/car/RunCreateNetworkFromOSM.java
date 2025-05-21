@@ -39,6 +39,11 @@ public class RunCreateNetworkFromOSM {
 			TransformationFactory.WGS84, UTM32nAsEpsg
 		);
 
+		/*
+		 * FIXME: The deprecated OsmNetworkReader adjusted link attributes (probably capacity, freespeed) to some vsp standards. The newer
+		 * SupersonicOsmNetworkReader has options to modify these attributes, but apparently no direct substitution to set to the same standards.
+		 * Newer scenarios create a sumo network and then translate that into matsim and modify attributes. Not sure what to do here, gleich may'25
+		 */
 		// create an osm network reader with a filter
 		OsmNetworkReader reader = new OsmNetworkReader(network, transformation, true, true);
 
