@@ -46,11 +46,7 @@ import org.matsim.pt.transitSchedule.api.TransitSchedule;
 import org.matsim.pt.transitSchedule.api.TransitScheduleFactory;
 import org.matsim.pt.transitSchedule.api.TransitStopFacility;
 import org.matsim.pt.utils.CreatePseudoNetwork;
-import org.matsim.vehicles.Vehicle;
-import org.matsim.vehicles.VehicleType;
-import org.matsim.vehicles.VehicleWriterV1;
-import org.matsim.vehicles.Vehicles;
-import org.matsim.vehicles.VehiclesFactory;
+import org.matsim.vehicles.*;
 
 /**
  * @author smueller
@@ -100,7 +96,7 @@ public class RunGTFS2MATSim {
 //		check for links with length zero and set lenghts of these links to 50
 		checkNetworkForLinksWithLenght0(scenario);
 
-		new VehicleWriterV1(scenario.getTransitVehicles()).writeFile(svnDir + "public-svn/matsim/scenarios/countries/de/germany/input/2020_Train_GTFS_transitVehicles_cleaned.xml.gz");
+		new MatsimVehicleWriter(scenario.getTransitVehicles()).writeFile(svnDir + "public-svn/matsim/scenarios/countries/de/germany/input/2020_Train_GTFS_transitVehicles_cleaned.xml.gz");
 		new TransitScheduleWriterV2(scenario.getTransitSchedule()).write(svnDir + "public-svn/matsim/scenarios/countries/de/germany/input/2020_Train_GTFS_transitSchedule_cleaned.xml.gz");
 		new NetworkWriter(scenario.getNetwork()).write(svnDir + "public-svn/matsim/scenarios/countries/de/germany/input/2020_Train_GTFS_network_cleaned.xml.gz");
 
