@@ -40,7 +40,7 @@ import org.matsim.pt.transitSchedule.api.TransitScheduleFactory;
 import org.matsim.pt.transitSchedule.api.TransitStopFacility;
 import org.matsim.pt.utils.CreatePseudoNetwork;
 import org.matsim.pt.utils.CreateVehiclesForSchedule;
-import org.matsim.vehicles.VehicleWriterV1;
+import org.matsim.vehicles.MatsimVehicleWriter;
 
 /**
  * @author smueller
@@ -81,7 +81,7 @@ public class CreateBERCGN2030timetable {
 		new CreatePseudoNetwork(scenario.getTransitSchedule(), scenario.getNetwork(), "2030_").createNetwork();
 		new CreateVehiclesForSchedule(scenario.getTransitSchedule(), scenario.getTransitVehicles()).run();
 		RunGTFS2MATSim.setLinkSpeedsToMax(scenario);
-		new VehicleWriterV1(scenario.getTransitVehicles()).writeFile("2030_transitVehicles.xml.gz");
+		new MatsimVehicleWriter(scenario.getTransitVehicles()).writeFile("2030_transitVehicles.xml.gz");
 		new TransitScheduleWriterV2(scenario.getTransitSchedule()).write("2030_transitSchedule.xml.gz");
 		new NetworkWriter(scenario.getNetwork()).write("2030_network.xml.gz");
 
