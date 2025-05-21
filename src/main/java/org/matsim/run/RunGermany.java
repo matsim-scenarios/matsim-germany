@@ -193,7 +193,7 @@ public class RunGermany {
 		config.plans().setInputFile(inputPlans);
 
 		config.transit().setUseTransit(true);
-		config.transitRouter().setMaxBeelineWalkConnectionDistance(500);
+		config.transitRouter().setMaxBeelineWalkConnectionDistance(500.);
 
 		Set<String> transitModes = new HashSet<>();
 //		transitModes.add(TransportMode.train);
@@ -233,9 +233,9 @@ public class RunGermany {
 
 		IntermodalAccessEgressParameterSet intermodalAccessEgressParameterSetAirportWithCar = new IntermodalAccessEgressParameterSet();
 		intermodalAccessEgressParameterSetAirportWithCar.setMode("car");
-		intermodalAccessEgressParameterSetAirportWithCar.setMaxRadius(200 * 1000);
-		intermodalAccessEgressParameterSetAirportWithCar.setInitialSearchRadius(50 * 1000);
-		intermodalAccessEgressParameterSetAirportWithCar.setSearchExtensionRadius(50 * 1000);
+		intermodalAccessEgressParameterSetAirportWithCar.setMaxRadius(200000.);
+		intermodalAccessEgressParameterSetAirportWithCar.setInitialSearchRadius(50000.);
+		intermodalAccessEgressParameterSetAirportWithCar.setSearchExtensionRadius(50000.);
 		intermodalAccessEgressParameterSetAirportWithCar.setStopFilterAttribute("type");
 		intermodalAccessEgressParameterSetAirportWithCar.setStopFilterValue("airport");
 		srrConfig.addIntermodalAccessEgress(intermodalAccessEgressParameterSetAirportWithCar);
@@ -278,9 +278,9 @@ public class RunGermany {
 
 		IntermodalAccessEgressParameterSet intermodalAccessEgressParameterSetWalk = new IntermodalAccessEgressParameterSet();
 		intermodalAccessEgressParameterSetWalk.setMode("walk");
-		intermodalAccessEgressParameterSetWalk.setMaxRadius(5 * 1000);
-		intermodalAccessEgressParameterSetWalk.setInitialSearchRadius(1 * 1000);
-		intermodalAccessEgressParameterSetWalk.setSearchExtensionRadius(1 * 1000);
+		intermodalAccessEgressParameterSetWalk.setMaxRadius(5000.);
+		intermodalAccessEgressParameterSetWalk.setInitialSearchRadius(1000.);
+		intermodalAccessEgressParameterSetWalk.setSearchExtensionRadius(1000.);
 		srrConfig.addIntermodalAccessEgress(intermodalAccessEgressParameterSetWalk);
 
 		config.addModule(srrConfig);

@@ -14,7 +14,7 @@ import java.util.HashSet;
 
 
 /**
- * Example on how to convert osm data from e.g. http://download.geofabrik.de into a MATSim network. This examle puts all
+ * Example on how to convert osm data from e.g. <a href="http://download.geofabrik.de">http://download.geofabrik.de</a> into a MATSim network. This examle puts all
  * motorways and primary roads into the MATSim network. If a link is contained in the supplied shape, also minor and
  * residential raods are put into the MATsim network.
  * <p>
@@ -22,8 +22,8 @@ import java.util.HashSet;
  */
 public class RunCreateNetworkFromOSM {
 
-	private static String UTM32nAsEpsg = "EPSG:31467";
-	private static Path input = Paths.get("../public-svn/matsim/scenarios/countries/de/germany/original_data/osm/germanyFilter.osm");
+	private static final String UTM32nAsEpsg = "EPSG:31467";
+	private static final Path input = Paths.get("../public-svn/matsim/scenarios/countries/de/germany/original_data/osm/germanyFilter.osm");
 
 
 	public static void main(String[] args) {
