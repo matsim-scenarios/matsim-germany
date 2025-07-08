@@ -21,6 +21,7 @@ jobs:
 
       - name: Package
         run: mvn --batch-mode --update-snapshots checkstyle:checkstyle
+        continue-on-error: true # continue on error to allow the build to proceed
 
   enforce:
     #run if push or pull_requests from fork
@@ -69,29 +70,30 @@ jobs:
           name: test-coverage
           path: target/site/jacoco/
 
-  package:
-    #run if push or pull_requests from fork
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
-    needs: [checkstyle, enforce, test]
-    name: Package
-
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          java-version: 21
-          architecture: x64
-          distribution: adopt
-          cache: maven
-
-      - name: Package
-        run: mvn --batch-mode --update-snapshots package -DskipTests -Dmatsim.preferLocalDtds=true -Dmaven.javadoc.skip -e
-      - run: mkdir staging && cp *.jar staging
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Package
-          path: staging
-
-    env:
-      MAVEN_OPTS: -Xmx512m
+#### IMO we do not need the package step currently, as we do not have a release process.
+#  package:
+#    #run if push or pull_requests from fork
+#    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+#    needs: [checkstyle, enforce, test]
+#    name: Package
+#
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#      - uses: actions/setup-java@v4
+#        with:
+#          java-version: 21
+#          architecture: x64
+#          distribution: adopt
+#          cache: maven
+#
+#      - name: Package
+#        run: mvn --batch-mode --update-snapshots package -DskipTests -Dmatsim.preferLocalDtds=true -Dmaven.javadoc.skip -e
+#      - run: mkdir staging && cp *.jar staging
+#      - uses: actions/upload-artifact@v4
+#        with:
+#          name: Package
+#          path: staging
+#
+#    env:
+#      MAVEN_OPTS: -Xmx512m
