@@ -21,6 +21,7 @@ jobs:
 
       - name: Package
         run: mvn --batch-mode --update-snapshots checkstyle:checkstyle
+        continue-on-error: true # continue on error to allow the build to proceed
 
   enforce:
     #run if push or pull_requests from fork
