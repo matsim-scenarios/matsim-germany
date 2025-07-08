@@ -1,13 +1,6 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
-	<parent>
-		<groupId>org.matsim</groupId>
-		<artifactId>matsim-all</artifactId>
-		<version>2026.0-PR3957</version>
-		<!--		<version>16.0-SNAPSHOT</version>-->
-	</parent>
-
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.github.matsim-scenarios</groupId>
 	<artifactId>matsim-germany</artifactId>
@@ -15,6 +8,14 @@
 
 	<name>MATSim Germany scenario project</name>
 	<description>MATSim Germany scenario project</description>
+
+	<parent>
+		<groupId>org.matsim</groupId>
+		<artifactId>matsim-all</artifactId>
+<!--		<version>2026.0-PR3957</version>-->
+		<version>2026.0-2025w28</version>
+<!--        <version>2026.0-SNAPSHOT</version>-->
+	</parent>
 
 	<properties>
 		<!-- Don't modify this, change the parent version instead! -->
@@ -152,12 +153,6 @@
 		</dependency>
 		<!--Dependencies from where stated above to here are added as a service; they can be removed if you don't need them-->
 
-
-		<dependency>
-			<groupId>org.apache.commons</groupId>
-			<artifactId>commons-csv</artifactId>
-			<version>1.11.0</version>
-		</dependency>
 	</dependencies>
 
 	<build>
