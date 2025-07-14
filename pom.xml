@@ -13,7 +13,7 @@
 		<groupId>org.matsim</groupId>
 		<artifactId>matsim-all</artifactId>
 <!--		<version>2026.0-PR3957</version>-->
-		<version>2026.0-2025w28</version>
+		<version>2026.0-2025w29</version>
 <!--        <version>2026.0-SNAPSHOT</version>-->
 	</parent>
 
