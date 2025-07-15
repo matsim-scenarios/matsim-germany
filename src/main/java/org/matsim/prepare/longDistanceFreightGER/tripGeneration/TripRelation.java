@@ -170,7 +170,7 @@ class TripRelation {
 
 	public static List<TripRelation> readTripRelations(String pathToKettenData) throws IOException {
 		List<TripRelation> tripRelations = new ArrayList<>();
-		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(pathToKettenData), StandardCharsets.ISO_8859_1)) {
+		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.resolveFileOrResource(pathToKettenData), StandardCharsets.ISO_8859_1)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
 				.setSkipHeaderRecord(true).build().parse(reader);
 					for (CSVRecord record : parser) {

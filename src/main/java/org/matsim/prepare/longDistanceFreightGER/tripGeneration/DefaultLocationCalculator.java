@@ -19,6 +19,8 @@ import org.matsim.core.utils.io.IOUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
@@ -26,7 +28,6 @@ import java.util.stream.Collectors;
 
 /**
  * Type description //TODO
- * // TODO Typo 2021--> 2016
  */
 class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalculator {
 	private final static Logger logger = LogManager.getLogger(DefaultLocationCalculator.class);
@@ -36,9 +37,9 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 	private final Map<String, List<Id<Link>>> mapping = new HashMap<>();
 	private final ShpOptions shp;
 	private static final String lookUpTablePath = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/" +
-		"scenarios/countries/de/german-wide-freight/v2/processed-data/complete-lookup-table.csv"; // This one is now fixed
+		"scenarios/countries/de/german-wide-freight/v2/processed-data/complete-lookup-table.csv";
 
-	public DefaultLocationCalculator(Network network, Path shpFilePath, LanduseOptions landUse) throws IOException {
+	public DefaultLocationCalculator(Network network, String shpFilePath, LanduseOptions landUse) throws IOException {
 		this.shp = new ShpOptions(shpFilePath, "EPSG:4326", StandardCharsets.ISO_8859_1);
 		// Reading shapefile from URL may not work properly, therefore users may need to download the shape file to the local directory
 		this.landUse = landUse;
@@ -49,7 +50,7 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 	private void prepareMapping() throws IOException {
 		logger.info("Reading NUTS shape files...");
 		Set<String> relevantNutsIds = new HashSet<>();
-		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(lookUpTablePath), StandardCharsets.UTF_8)) {
+		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.resolveFileOrResource(lookUpTablePath), StandardCharsets.UTF_8)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
 				.setSkipHeaderRecord(true).build().parse(reader);
 			for (CSVRecord record : parser) {
@@ -91,14 +92,14 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 		logger.info("Network and shapefile processing complete!");
 
 		logger.info("Computing mapping between Verkehrszelle and departure location...");
-		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(lookUpTablePath), StandardCharsets.UTF_8)) {
+		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.resolveFileOrResource(lookUpTablePath), StandardCharsets.UTF_8)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
 				.setSkipHeaderRecord(true).build().parse(reader);
 			for (CSVRecord record : parser) {
 				String verkehrszelle = record.get(0);
-				String nuts2021 = record.get(3);
-				if (!nuts2021.isEmpty() && nutsToLinksMapping.get(nuts2021) != null) {
-					mapping.put(verkehrszelle, nutsToLinksMapping.get(nuts2021).stream().map(Identifiable::getId).collect(Collectors.toList()));
+				String nuts2016 = record.get(3);
+				if (!nuts2016.isEmpty() && nutsToLinksMapping.get(nuts2016) != null) {
+					mapping.put(verkehrszelle, nutsToLinksMapping.get(nuts2016).stream().map(Identifiable::getId).collect(Collectors.toList()));
 					continue;
 				}
 				Coord backupCoord = new Coord(Double.parseDouble(record.get(5)), Double.parseDouble(record.get(6)));

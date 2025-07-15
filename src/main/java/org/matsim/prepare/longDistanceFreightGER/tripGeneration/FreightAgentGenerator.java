@@ -18,7 +18,7 @@ class FreightAgentGenerator {
     private final PopulationFactory populationFactory;
     private final Network network;
 
-    public FreightAgentGenerator(Network network, Path shpPath, LanduseOptions landUse, double averageLoad, int workingDays, double sample) throws IOException {
+    public FreightAgentGenerator(Network network, String shpPath, LanduseOptions landUse, double averageLoad, int workingDays, double sample) throws IOException {
         this.locationCalculator = new DefaultLocationCalculator(network, shpPath, landUse);
         this.departureTimeCalculator = new DefaultDepartureTimeCalculator();
         this.numOfTripsCalculator = new DefaultNumberOfTripsCalculator(averageLoad, workingDays, sample);

@@ -16,9 +16,14 @@ import picocli.CommandLine;
 
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Set;
 
 @CommandLine.Command(
         name = "generate-freight-plans",
@@ -36,9 +41,9 @@ public class GenerateFreightPlans implements MATSimAppCommand {
             defaultValue = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/germany-europe-network.xml.gz")
     private String networkPath;
 
-    @CommandLine.Option(names = "--nuts", description = "Path to NUTS file (available on SVN: )", required = true)
-    // TODO Change this to URL pointing to SVN--> need to update the Location calculator
-    private Path shpPath;
+    @CommandLine.Option(names = "--nuts", description = "Path to NUTS file (shape file)",
+		defaultValue= "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/shp/NUTS_RG_20M_2016_4326.shp/NUTS_RG_20M_2016_4326.shp")
+    private String shpPath;
 
     @CommandLine.Option(names = "--output", description = "Output folder path", required = true)
     private Path output;
@@ -52,15 +57,24 @@ public class GenerateFreightPlans implements MATSimAppCommand {
     @CommandLine.Option(names = "--sample", defaultValue = "100", description = "Sample size of the freight plans (0, 100]")
     private double pct;
 
-    @CommandLine.Mixin
-    private LanduseOptions landuse = new LanduseOptions();
+//    @CommandLine.Mixin
+//    private LanduseOptions landuse = new LanduseOptions("/Users/luchengqi/Documents/SVN/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/shp/landuse/landuse.shp",
+//		Set.of("industrial", "commercial", "retail"));
 
     @Override
     public Integer call() throws Exception {
+		if (!Files.exists(output)) {
+			Files.createDirectory(output);
+		}
+
+		// download land use shp (we need this because GeoTools cannot handle land use shp from URL properly)
+		downloadLanduseShp();
+
         Network network = NetworkUtils.readNetwork(networkPath);
         log.info("Network successfully loaded!");
 
         log.info("preparing freight agent generator...");
+		LanduseOptions landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", Set.of("industrial", "commercial", "retail"));
         FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuse, averageTruckLoad, workingDays, pct / 100);
         log.info("Freight agent generator successfully created!");
 
@@ -79,10 +93,6 @@ public class GenerateFreightPlans implements MATSimAppCommand {
             if (i % 500000 == 0) {
 				log.info("Processing: {} out of {} entries have been processed", i, tripRelations.size());
             }
-        }
-
-        if (!Files.exists(output)) {
-            Files.createDirectory(output);
         }
 
         String outputPlansPath = output.toString() + "/german_freight." + pct + "pct.plans.xml.gz";
@@ -114,4 +124,34 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 	public static void main(String[] args) {
         new GenerateFreightPlans().execute(args);
     }
+
+	private void downloadLanduseShp() throws IOException {
+		Path targetDir = output.resolve("landuse-shp");
+		if (Files.exists(targetDir)){
+			log.info("Land use shp folder already existed. It will not be downloaded again.");
+			return;
+		}
+		Files.createDirectories(targetDir);
+
+		// download shp from svn
+		String baseUrl = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/shp/landuse/";
+		List<String> fileNames = List.of(
+			"landuse.shp",
+			"landuse.dbf",
+			"landuse.shx",
+			"landuse.prj",
+			"landuse.fix"
+		);
+		for (String fileName : fileNames) {
+			String fileUrl = baseUrl + fileName;
+			Path outputPath = targetDir.resolve(fileName);
+			System.out.println("Downloading " + fileName + "...");
+
+			try (InputStream in = URI.create(fileUrl).toURL().openStream()) {
+				Files.copy(in, outputPath, StandardCopyOption.REPLACE_EXISTING);
+			}
+
+			System.out.println("Saved to " + outputPath);
+		}
+	}
 }
