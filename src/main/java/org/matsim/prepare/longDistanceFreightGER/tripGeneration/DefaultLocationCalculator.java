@@ -19,14 +19,15 @@ import org.matsim.core.utils.io.IOUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Type description //TODO
- * // TODO Typo 2021--> 2016
+ * Determine the start and end locations of the freight trips based on the NUTS3 shape file and the land use data (e.g., industry, retail, commercial)
  */
 class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalculator {
 	private final static Logger logger = LogManager.getLogger(DefaultLocationCalculator.class);
@@ -36,11 +37,11 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 	private final Map<String, List<Id<Link>>> mapping = new HashMap<>();
 	private final ShpOptions shp;
 	private static final String lookUpTablePath = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/" +
-		"scenarios/countries/de/german-wide-freight/v2/processed-data/complete-lookup-table.csv"; // This one is now fixed
+		"scenarios/countries/de/german-wide-freight/v2/processed-data/complete-lookup-table.csv";
 
-	public DefaultLocationCalculator(Network network, Path shpFilePath, LanduseOptions landUse) throws IOException {
+	public DefaultLocationCalculator(Network network, String shpFilePath, LanduseOptions landUse) throws IOException {
 		this.shp = new ShpOptions(shpFilePath, "EPSG:4326", StandardCharsets.ISO_8859_1);
-		// Reading shapefile from URL may not work properly, therefore users may need to download the shape file to the local directory
+		// Reading shapefile from URL may not work properly, therefore, users may need to download the shape file to the local directory
 		this.landUse = landUse;
 		this.network = network;
 		prepareMapping();
@@ -49,7 +50,7 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 	private void prepareMapping() throws IOException {
 		logger.info("Reading NUTS shape files...");
 		Set<String> relevantNutsIds = new HashSet<>();
-		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(lookUpTablePath), StandardCharsets.UTF_8)) {
+		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.resolveFileOrResource(lookUpTablePath), StandardCharsets.UTF_8)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
 				.setSkipHeaderRecord(true).build().parse(reader);
 			for (CSVRecord record : parser) {
@@ -60,11 +61,15 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 		}
 
 		// network CRS: EPSG:25832
-		ShpOptions.Index index = shp.createIndex("EPSG:25832", "NUTS_ID",
+		ShpOptions.Index shpIndex = shp.createIndex("EPSG:25832", "NUTS_ID",
 			ft -> relevantNutsIds.contains(Objects.toString(ft.getAttribute("NUTS_ID"))));
 
-		logger.info("Reading land use data...");
-		ShpOptions.Index landIndex = landUse.getIndex("EPSG:25832"); //TODO
+		ShpOptions.Index landIndex = null;
+		if (landUse != null) {
+			logger.info("Reading land use data...");
+			landIndex = landUse.getIndex("EPSG:25832");
+			//TODO check if the land use reader functions properly
+		}
 
 		logger.info("Processing shape network and shapefile...");
 		List<Link> links = network.getLinks().values().stream().filter(l -> l.getAllowedModes().contains("car"))
@@ -72,7 +77,7 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 		Map<String, List<Link>> nutsToLinksMapping = new HashMap<>();
 		Map<String, List<Link>> filteredNutsToLinksMapping = new HashMap<>();
 		for (Link link : links) {
-			String nutsId = index.query(link.getToNode().getCoord());
+			String nutsId = shpIndex.query(link.getToNode().getCoord());
 			if (nutsId != null) {
 				nutsToLinksMapping.computeIfAbsent(nutsId, l -> new ArrayList<>()).add(link);
 				if (landIndex != null) {
@@ -84,21 +89,21 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 			}
 		}
 
-		// When filtered links list is not empty, then we use filtered links list. Otherwise, we use the full link lists in the NUTS region.
+		// When the filtered links list is not empty, then we use the filtered links list. Otherwise, we use the full link lists in the NUTS region.
 		for (String nutsId : filteredNutsToLinksMapping.keySet()) {
 			nutsToLinksMapping.put(nutsId, filteredNutsToLinksMapping.get(nutsId));
 		}
 		logger.info("Network and shapefile processing complete!");
 
 		logger.info("Computing mapping between Verkehrszelle and departure location...");
-		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(lookUpTablePath), StandardCharsets.UTF_8)) {
+		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.resolveFileOrResource(lookUpTablePath), StandardCharsets.UTF_8)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
 				.setSkipHeaderRecord(true).build().parse(reader);
 			for (CSVRecord record : parser) {
 				String verkehrszelle = record.get(0);
-				String nuts2021 = record.get(3);
-				if (!nuts2021.isEmpty() && nutsToLinksMapping.get(nuts2021) != null) {
-					mapping.put(verkehrszelle, nutsToLinksMapping.get(nuts2021).stream().map(Identifiable::getId).collect(Collectors.toList()));
+				String nuts2016 = record.get(3);
+				if (!nuts2016.isEmpty() && nutsToLinksMapping.get(nuts2016) != null) {
+					mapping.put(verkehrszelle, nutsToLinksMapping.get(nuts2016).stream().map(Identifiable::getId).collect(Collectors.toList()));
 					continue;
 				}
 				Coord backupCoord = new Coord(Double.parseDouble(record.get(5)), Double.parseDouble(record.get(6)));
