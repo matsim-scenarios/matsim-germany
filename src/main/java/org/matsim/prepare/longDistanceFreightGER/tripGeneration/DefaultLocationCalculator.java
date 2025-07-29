@@ -27,7 +27,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Type description //TODO
+ * Determine the start and end locations of the freight trips based on the NUTS3 shape file and the land use data (e.g., industry, retail, commercial)
  */
 class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalculator {
 	private final static Logger logger = LogManager.getLogger(DefaultLocationCalculator.class);
@@ -41,7 +41,7 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 
 	public DefaultLocationCalculator(Network network, String shpFilePath, LanduseOptions landUse) throws IOException {
 		this.shp = new ShpOptions(shpFilePath, "EPSG:4326", StandardCharsets.ISO_8859_1);
-		// Reading shapefile from URL may not work properly, therefore users may need to download the shape file to the local directory
+		// Reading shapefile from URL may not work properly, therefore, users may need to download the shape file to the local directory
 		this.landUse = landUse;
 		this.network = network;
 		prepareMapping();
@@ -61,11 +61,15 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 		}
 
 		// network CRS: EPSG:25832
-		ShpOptions.Index index = shp.createIndex("EPSG:25832", "NUTS_ID",
+		ShpOptions.Index shpIndex = shp.createIndex("EPSG:25832", "NUTS_ID",
 			ft -> relevantNutsIds.contains(Objects.toString(ft.getAttribute("NUTS_ID"))));
 
-		logger.info("Reading land use data...");
-		ShpOptions.Index landIndex = landUse.getIndex("EPSG:25832"); //TODO
+		ShpOptions.Index landIndex = null;
+		if (landUse != null) {
+			logger.info("Reading land use data...");
+			landIndex = landUse.getIndex("EPSG:25832");
+			//TODO check if the land use reader functions properly
+		}
 
 		logger.info("Processing shape network and shapefile...");
 		List<Link> links = network.getLinks().values().stream().filter(l -> l.getAllowedModes().contains("car"))
@@ -73,7 +77,7 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 		Map<String, List<Link>> nutsToLinksMapping = new HashMap<>();
 		Map<String, List<Link>> filteredNutsToLinksMapping = new HashMap<>();
 		for (Link link : links) {
-			String nutsId = index.query(link.getToNode().getCoord());
+			String nutsId = shpIndex.query(link.getToNode().getCoord());
 			if (nutsId != null) {
 				nutsToLinksMapping.computeIfAbsent(nutsId, l -> new ArrayList<>()).add(link);
 				if (landIndex != null) {
@@ -85,7 +89,7 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 			}
 		}
 
-		// When filtered links list is not empty, then we use filtered links list. Otherwise, we use the full link lists in the NUTS region.
+		// When the filtered links list is not empty, then we use the filtered links list. Otherwise, we use the full link lists in the NUTS region.
 		for (String nutsId : filteredNutsToLinksMapping.keySet()) {
 			nutsToLinksMapping.put(nutsId, filteredNutsToLinksMapping.get(nutsId));
 		}

@@ -20,7 +20,6 @@ import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Set;
@@ -57,9 +56,9 @@ public class GenerateFreightPlans implements MATSimAppCommand {
     @CommandLine.Option(names = "--sample", defaultValue = "100", description = "Sample size of the freight plans (0, 100]")
     private double pct;
 
-//    @CommandLine.Mixin
-//    private LanduseOptions landuse = new LanduseOptions("/Users/luchengqi/Documents/SVN/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/shp/landuse/landuse.shp",
-//		Set.of("industrial", "commercial", "retail"));
+	@CommandLine.Option(names = "--land-use-filter", description = "specify land use type to filter out starting locations. Empty means no filter",
+		arity = "0..*", split = ",", defaultValue = "industrial,commercial,retail")
+	private Set<String> landUseTypes;
 
     @Override
     public Integer call() throws Exception {
@@ -68,13 +67,19 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 		}
 
 		// download land use shp (we need this because GeoTools cannot handle land use shp from URL properly)
-		downloadLanduseShp();
+		if (!landUseTypes.isEmpty()){
+			downloadLanduseShp();
+		}
 
         Network network = NetworkUtils.readNetwork(networkPath);
         log.info("Network successfully loaded!");
 
         log.info("preparing freight agent generator...");
-		LanduseOptions landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", Set.of("industrial", "commercial", "retail"));
+//		LanduseOptions landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", Set.of("industrial", "commercial", "retail"));
+		LanduseOptions landuse = null;
+		if (!landUseTypes.isEmpty()){
+			landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", landUseTypes);
+		}
         FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuse, averageTruckLoad, workingDays, pct / 100);
         log.info("Freight agent generator successfully created!");
 
