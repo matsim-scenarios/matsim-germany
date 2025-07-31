@@ -1,4 +1,4 @@
-package org.matsim.prepare.longDistanceFreightGER.dataPreparation;
+package org.matsim.prepare.longDistanceFreightGER;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -22,7 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class GenerateLookupTable implements MATSimAppCommand {
+class GenerateLookupTable implements MATSimAppCommand {
 
     @CommandLine.Option(names = "--input", description = "input region list (Verkehrszellen)", required = true)
     private Path input;
