@@ -1,4 +1,4 @@
-package org.matsim.prepare.longDistanceFreightGER.dataPreparation;
+package org.matsim.prepare.longDistanceFreightGER;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
 	description = "Determine the average truck load based on count data",
 	showDefaultValues = true
 )
-public class DetermineAverageTruckLoad implements MATSimAppCommand {
+class DetermineAverageTruckLoad implements MATSimAppCommand {
 	private static final Logger log = LogManager.getLogger(DetermineAverageTruckLoad.class);
 
 	@CommandLine.Option(names = "--output", description = "Path to the traffic count data", required = true)

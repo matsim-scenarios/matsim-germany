@@ -1,4 +1,4 @@
-package org.matsim.prepare.longDistanceFreightGER.tripGeneration;
+package org.matsim.prepare.longDistanceFreightGER;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
@@ -12,6 +12,7 @@ import org.matsim.application.options.LanduseOptions;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.PopulationUtils;
+import org.matsim.core.scenario.ProjectionUtils;
 import picocli.CommandLine;
 
 import java.io.FileWriter;
@@ -30,6 +31,10 @@ import java.util.Set;
         showDefaultValues = true
 )
 public class GenerateFreightPlans implements MATSimAppCommand {
+	// There are lots of hardcoded things in this whole package.  They should be sorted out and centralized.
+	// In particular, the coordinate transforms are hardcoded, instead of beging centralized and/or taken from files.  In particular, they are not
+	// taken from the shp files.
+
     private static final Logger log = LogManager.getLogger(GenerateFreightPlans.class);
 
     @CommandLine.Option(names = "--data", description = "Path to raw data (ketten 2010)",
@@ -41,7 +46,7 @@ public class GenerateFreightPlans implements MATSimAppCommand {
     private String networkPath;
 
     @CommandLine.Option(names = "--nuts", description = "Path to NUTS file (shape file)",
-		defaultValue= "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/shp/NUTS_RG_20M_2016_4326.shp/NUTS_RG_20M_2016_4326.shp")
+		defaultValue= "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/shp/NUTS_RG_20M_2016_25832.shp/NUTS_RG_20M_2016_25832.shp")
     private String shpPath;
 
     @CommandLine.Option(names = "--output", description = "Output folder path", required = true)
@@ -74,6 +79,9 @@ public class GenerateFreightPlans implements MATSimAppCommand {
         Network network = NetworkUtils.readNetwork(networkPath);
         log.info("Network successfully loaded!");
 
+		String targetCRS = ProjectionUtils.getCRS( network );
+		// yyyy There are several other places in the package where CRSes are manually set.
+
         log.info("preparing freight agent generator...");
 //		LanduseOptions landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", Set.of("industrial", "commercial", "retail"));
 		LanduseOptions landuse = null;
@@ -89,6 +97,9 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 
         log.info("Start generating population...");
         Population outputPopulation = PopulationUtils.createPopulation(ConfigUtils.createConfig());
+
+		ProjectionUtils.putCRS( outputPopulation, targetCRS );
+
         for (int i = 0; i < tripRelations.size(); i++) {
             List<Person> persons = freightAgentGenerator.generateFreightAgents(tripRelations.get(i), Integer.toString(i));
             for (Person person : persons) {
@@ -126,6 +137,12 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 	}
 
 	public static void main(String[] args) {
+		if ( args==null || args.length==0 ) {
+			args = new String[] {
+					"--output", "output-longDistanceFreightGER"
+										,"--land-use-filter" // only for testing!
+			};
+		}
         new GenerateFreightPlans().execute(args);
     }
 

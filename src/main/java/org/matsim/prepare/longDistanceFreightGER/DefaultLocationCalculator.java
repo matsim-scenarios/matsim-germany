@@ -1,4 +1,4 @@
-package org.matsim.prepare.longDistanceFreightGER.tripGeneration;
+package org.matsim.prepare.longDistanceFreightGER;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -15,14 +15,12 @@ import org.matsim.application.options.ShpOptions;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.transformations.GeotoolsTransformation;
+import org.matsim.core.utils.geometry.transformations.IdentityTransformation;
 import org.matsim.core.utils.io.IOUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -40,7 +38,11 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 		"scenarios/countries/de/german-wide-freight/v2/processed-data/complete-lookup-table.csv";
 
 	public DefaultLocationCalculator(Network network, String shpFilePath, LanduseOptions landUse) throws IOException {
-		this.shp = new ShpOptions(shpFilePath, "EPSG:4326", StandardCharsets.ISO_8859_1);
+
+//		this.shp = new ShpOptions(shpFilePath, "EPSG:4326", StandardCharsets.ISO_8859_1);
+		this.shp = new ShpOptions(shpFilePath, "EPSG:25832", StandardCharsets.ISO_8859_1);
+		// yyyy would be far better to get the CRS directly out of the shapefile.
+
 		// Reading shapefile from URL may not work properly, therefore, users may need to download the shape file to the local directory
 		this.landUse = landUse;
 		this.network = network;
@@ -107,7 +109,8 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 					continue;
 				}
 				Coord backupCoord = new Coord(Double.parseDouble(record.get(5)), Double.parseDouble(record.get(6)));
-				CoordinateTransformation ct = new GeotoolsTransformation("EPSG:4326", "EPSG:25832");
+//				CoordinateTransformation ct = new GeotoolsTransformation("EPSG:4326", "EPSG:25832");
+				CoordinateTransformation ct = new IdentityTransformation();
 				Coord transformedCoord = ct.transform(backupCoord);
 				Link backupLink = NetworkUtils.getNearestLink(network, transformedCoord);
 				assert backupLink != null : "link closest to " + transformedCoord + "is null";

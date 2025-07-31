@@ -1,7 +1,8 @@
-package org.matsim.prepare.longDistanceFreightGER.tripGeneration;
+package org.matsim.prepare.longDistanceFreightGER;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.geotools.util.factory.Hints;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.matsim.api.core.v01.network.Network;
@@ -16,7 +17,7 @@ import org.matsim.testcases.MatsimTestUtils;
 import java.io.IOException;
 import java.util.List;
 
-import static org.matsim.prepare.longDistanceFreightGER.tripGeneration.GenerateFreightPlans.createOutput_tripOD_relations;
+import static org.matsim.prepare.longDistanceFreightGER.GenerateFreightPlans.createOutput_tripOD_relations;
 
 public class GenerateFreightTripTest {
 
@@ -30,11 +31,13 @@ public class GenerateFreightTripTest {
 	public final void test() {
 		String [] args = {
 			"--output", utils.getOutputDirectory(),
-			"--sample", "0.001",
-			"--land-use-filter"
+			"--sample", "1"
+				, "--land-use-filter"
 		};
 
-		GenerateFreightPlans.main(args);
+		Hints.putSystemDefault(Hints.FORCE_LONGITUDE_FIRST_AXIS_ORDER, Boolean.TRUE );
+
+		GenerateFreightPlans.main( args );
 		PopulationUtils.comparePopulations(utils.getInputDirectory() + "/german_freight.0.001pct.plans.xml.gz", utils.getOutputDirectory() + "/german_freight.0.001pct.plans.xml.gz");
 	}
 
@@ -47,7 +50,7 @@ public class GenerateFreightTripTest {
 		log.info("Freight agent generator successfully created!");
 
 		log.info("Reading trip relations...");
-		List<TripRelation> tripRelations = TripRelation.readTripRelations("https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/ketten-2010.csv");
+		List<TripRelation> tripRelations = TripRelation.readTripRelations("https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/ketten-2010.csv" );
 		log.info("Trip relations successfully loaded. There are {} trip relations", tripRelations.size());
 
 		log.info("Start generating population...");

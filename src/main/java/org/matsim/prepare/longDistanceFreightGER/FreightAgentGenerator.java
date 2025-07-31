@@ -1,4 +1,4 @@
-package org.matsim.prepare.longDistanceFreightGER.tripGeneration;
+package org.matsim.prepare.longDistanceFreightGER;
 
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.network.Link;
@@ -8,7 +8,6 @@ import org.matsim.application.options.LanduseOptions;
 import org.matsim.core.population.PopulationUtils;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.*;
 
 class FreightAgentGenerator {

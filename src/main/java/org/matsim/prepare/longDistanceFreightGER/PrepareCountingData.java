@@ -1,4 +1,4 @@
-package org.matsim.prepare.longDistanceFreightGER.dataPreparation;
+package org.matsim.prepare.longDistanceFreightGER;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -30,7 +30,7 @@ import java.util.List;
 	description = "Prepare the freight traffic count data",
 	showDefaultValues = true
 )
-public class PrepareCountingData implements MATSimAppCommand {
+class PrepareCountingData implements MATSimAppCommand {
 	@CommandLine.Option(names = "--data", description = "Path to the raw data", required = true)
 	private Path rawDataPath;
 
