@@ -35,6 +35,7 @@ public class GenerateFreightTripTest {
 		};
 
 		GenerateFreightPlans.main(args);
+		PopulationUtils.comparePopulations(utils.getInputDirectory() + "/german_freight.0.001pct.plans.xml.gz", utils.getOutputDirectory() + "/german_freight.0.001pct.plans.xml.gz");
 	}
 
 	@Test

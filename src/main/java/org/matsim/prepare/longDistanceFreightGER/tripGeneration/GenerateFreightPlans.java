@@ -99,7 +99,6 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 				log.info("Processing: {} out of {} entries have been processed", i, tripRelations.size());
             }
         }
-
         String outputPlansPath = output.toString() + "/german_freight." + pct + "pct.plans.xml.gz";
         PopulationWriter populationWriter = new PopulationWriter(outputPopulation);
         populationWriter.write(outputPlansPath);
