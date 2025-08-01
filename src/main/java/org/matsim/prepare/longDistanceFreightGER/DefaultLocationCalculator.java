@@ -40,8 +40,10 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 	public DefaultLocationCalculator(Network network, String shpFilePath, LanduseOptions landUse) throws IOException {
 
 //		this.shp = new ShpOptions(shpFilePath, "EPSG:4326", StandardCharsets.ISO_8859_1);
-		this.shp = new ShpOptions(shpFilePath, "EPSG:25832", StandardCharsets.ISO_8859_1);
-		// yyyy would be far better to get the CRS directly out of the shapefile.
+//		this.shp = new ShpOptions(shpFilePath, "EPSG:25832", StandardCharsets.ISO_8859_1);
+		// would be far better to get the CRS directly out of the shapefile.
+		// Is actually possible, as follows:
+		this.shp = new ShpOptions(shpFilePath, null, StandardCharsets.ISO_8859_1);
 
 		// Reading shapefile from URL may not work properly, therefore, users may need to download the shape file to the local directory
 		this.landUse = landUse;

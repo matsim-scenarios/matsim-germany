@@ -31,14 +31,14 @@ public class GenerateFreightTripTest {
 	public final void test() {
 		String [] args = {
 			"--output", utils.getOutputDirectory(),
-			"--sample", "1"
+			"--sample", "0.001"
 				, "--land-use-filter"
 		};
 
 		Hints.putSystemDefault(Hints.FORCE_LONGITUDE_FIRST_AXIS_ORDER, Boolean.TRUE );
 
 		GenerateFreightPlans.main( args );
-		PopulationUtils.comparePopulations(utils.getInputDirectory() + "/german_freight.0.001pct.plans.xml.gz", utils.getOutputDirectory() + "/german_freight.0.001pct.plans.xml.gz");
+		PopulationUtils.comparePopulations(utils.getInputDirectory() + "german_freight.0.001pct.plans.xml.gz", utils.getOutputDirectory() + "german_freight.0.001pct.plans.xml.gz");
 	}
 
 	@Test
