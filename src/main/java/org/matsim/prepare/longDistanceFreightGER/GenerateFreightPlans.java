@@ -140,7 +140,8 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 		if ( args==null || args.length==0 ) {
 			args = new String[] {
 					"--output", "output-longDistanceFreightGER"
-										,"--land-use-filter" // only for testing!
+					,"--sample", "0.1"
+					,"--land-use-filter" // only for testing!
 			};
 		}
         new GenerateFreightPlans().execute(args);
