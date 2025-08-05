@@ -107,14 +107,15 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 				.setSkipHeaderRecord(true).build().parse(reader);
 			for (CSVRecord record : parser) {
 				String verkehrszelle = record.get(0);
-				String nuts2016 = record.get(3);
-				if (!nuts2016.isEmpty() && nutsToLinksMapping.get(nuts2016) != null) {
-					mapping.put(verkehrszelle, nutsToLinksMapping.get(nuts2016).stream().map(Identifiable::getId).collect(Collectors.toList()));
+				String nuts2021 = record.get(3);
+				if (!nuts2021.isEmpty() && nutsToLinksMapping.get(nuts2021) != null) {
+					mapping.put(verkehrszelle, nutsToLinksMapping.get(nuts2021).stream().map(Identifiable::getId).collect(Collectors.toList()));
 					continue;
 				}
+				// For some international location (i,e, not neighboring countries of Germany), no suitable NUTS code is present.
+				// In that case, we use the backup coord in the look-up table
 				Coord backupCoord = new Coord(Double.parseDouble(record.get(5)), Double.parseDouble(record.get(6)));
-//				CoordinateTransformation ct = new GeotoolsTransformation("EPSG:4326", "EPSG:25832");
-				CoordinateTransformation ct = new IdentityTransformation();
+				CoordinateTransformation ct = new GeotoolsTransformation("EPSG:4326", "EPSG:25832");
 				Coord transformedCoord = ct.transform(backupCoord);
 				Link backupLink = NetworkUtils.getNearestLink(network, transformedCoord);
 				assert backupLink != null : "link closest to " + transformedCoord + "is null";
