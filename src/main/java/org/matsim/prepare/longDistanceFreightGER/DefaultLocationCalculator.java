@@ -113,7 +113,7 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 					continue;
 				}
 				// For some international location (i,e, not neighboring countries of Germany), no suitable NUTS code is present.
-				// In that case, we use the backup coord in the look-up table
+				// In that case, we use the backup coord in the look-up table (manually specified, in longitude, latitude format, i.e., EPSG:4326)
 				Coord backupCoord = new Coord(Double.parseDouble(record.get(5)), Double.parseDouble(record.get(6)));
 				CoordinateTransformation ct = new GeotoolsTransformation("EPSG:4326", "EPSG:25832");
 				Coord transformedCoord = ct.transform(backupCoord);
