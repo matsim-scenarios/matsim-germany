@@ -6,15 +6,19 @@ import org.apache.commons.csv.CSVRecord;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.geotools.referencing.CRS;
+import org.geotools.referencing.util.CRSUtilities;
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Identifiable;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
+import org.matsim.application.options.CrsOptions;
 import org.matsim.application.options.LanduseOptions;
 import org.matsim.application.options.ShpOptions;
 import org.matsim.core.gbl.Gbl;
 import org.matsim.core.network.NetworkUtils;
+import org.matsim.core.scenario.ProjectionUtils;
+import org.matsim.core.utils.geometry.CoordUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.transformations.GeotoolsTransformation;
 import org.matsim.core.utils.geometry.transformations.IdentityTransformation;
@@ -110,7 +114,8 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.resolveFileOrResource(lookUpTablePath), StandardCharsets.UTF_8)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
 				.setSkipHeaderRecord(true).build().parse(reader);
-			CoordinateTransformation ct = new GeotoolsTransformation("EPSG:4326", "EPSG:25832");
+			CoordinateTransformation ct = new GeotoolsTransformation("EPSG:4326", ProjectionUtils.getCRS(network));
+//			CoordinateTransformation ct = new GeotoolsTransformation("EPSG:4326", "EPSG:25832");
 			// yyyy the second coordinate system should not be manually set here, but should come from the network. kai, aug'25
 
 			Counter recordCounter = new Counter( "record: " );
