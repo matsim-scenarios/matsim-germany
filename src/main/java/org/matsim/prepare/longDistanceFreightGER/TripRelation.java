@@ -20,11 +20,11 @@ class TripRelation {
 	/**
 	 * Start location of the full trip relation
 	 */
-	private final String originalCell;
+	private final String originCell;
 	/**
 	 * Start location of the main run; Also the destination of the pre-run (when applicable)
 	 */
-	private final String originalCellMainRun;
+	private final String originCellMainRun;
 	/**
 	 * Destination of the main run; Also the starting location of the post-run (when applicable)
 	 */
@@ -55,8 +55,8 @@ class TripRelation {
 	// private final String destinationTerminal; // Destination terminal for main run (also the starting terminal for the post-run)
 
 	public static class Builder {
-		private String originalCell;
-		private String originalCellMainRun;
+		private String originCell;
+		private String originCellMainRun;
 		private String destinationCellMainRun;
 		private String destinationCell;
 
@@ -67,13 +67,13 @@ class TripRelation {
 		private String goodsType;
 		private double tonsPerYear;
 
-		public Builder originalCell(String value) {
-			this.originalCell = value;
+		public Builder originCell(String value) {
+			this.originCell = value;
 			return this;
 		}
 
-		public Builder originalCellMainRun(String value) {
-			this.originalCellMainRun = value;
+		public Builder originCellMainRun(String value) {
+			this.originCellMainRun = value;
 			return this;
 		}
 
@@ -118,8 +118,8 @@ class TripRelation {
 	}
 
 	private TripRelation(Builder builder) {
-		this.originalCell = builder.originalCell;
-		this.originalCellMainRun = builder.originalCellMainRun;
+		this.originCell = builder.originCell;
+		this.originCellMainRun = builder.originCellMainRun;
 		this.destinationCellMainRun = builder.destinationCellMainRun;
 		this.destinationCell = builder.destinationCell;
 
@@ -131,12 +131,12 @@ class TripRelation {
 		this.tonsPerYear = builder.tonsPerYear;
 	}
 
-	public String getOriginalCell() {
-		return originalCell;
+	public String getOriginCell() {
+		return originCell;
 	}
 
-	public String getOriginalCellMainRun() {
-		return originalCellMainRun;
+	public String getOriginCellMainRun() {
+		return originCellMainRun;
 	}
 
 	public String getDestinationCellMainRun() {
@@ -172,11 +172,11 @@ class TripRelation {
 		List<TripRelation> tripRelations = new ArrayList<>();
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.resolveFileOrResource(pathToKettenData), StandardCharsets.ISO_8859_1)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
+				.setSkipHeaderRecord(true).get().parse(reader);
 					for (CSVRecord record : parser) {
 				Builder builder = new Builder();
 				// Read locations
-				builder.originalCell(record.get(0)).originalCellMainRun(record.get(2)).
+				builder.originCell(record.get(0)).originCellMainRun(record.get(2)). //TODO chnage to names instead of column numbers
 					destinationCellMainRun(record.get(3)).destinationCell(record.get(1));
 				// Read trips
 				builder.modePreRun(record.get(6)).modeMainRun(record.get(7)).modePostRun(record.get(8));
