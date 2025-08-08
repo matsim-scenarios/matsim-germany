@@ -26,9 +26,11 @@ public class GenerateFreightTripTest {
 			"--land-use-filter"
 		};
 
-		Hints.putSystemDefault(Hints.FORCE_LONGITUDE_FIRST_AXIS_ORDER, Boolean.TRUE );
+//		Hints.putSystemDefault(Hints.FORCE_LONGITUDE_FIRST_AXIS_ORDER, Boolean.TRUE );
 
-		GenerateFreightPlans.main( args );
+		GenerateFreightPlans.main( null );
+		// do this with null argument for the time being to really make sure that it uses the same setup as that main method (since that runs and this one here fails). kai, aug'25
+
 		PopulationUtils.comparePopulations(utils.getInputDirectory() + "german_freight.0.001pct.plans.xml.gz", utils.getOutputDirectory() + "german_freight.0.001pct.plans.xml.gz");
 	}
 
