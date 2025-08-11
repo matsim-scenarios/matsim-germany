@@ -1,7 +1,5 @@
 package org.matsim.prepare.longDistanceFreightGER;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.matsim.core.population.PopulationUtils;
@@ -11,8 +9,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class GenerateFreightTripTest {
-
-	private static final Logger log = LogManager.getLogger(GenerateFreightTripTest.class);
 
 	@RegisterExtension
 	public MatsimTestUtils utils = new MatsimTestUtils() ;

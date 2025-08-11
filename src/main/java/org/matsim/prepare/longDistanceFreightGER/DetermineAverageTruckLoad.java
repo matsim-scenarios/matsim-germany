@@ -23,18 +23,17 @@ import org.matsim.core.router.speedy.SpeedyALTFactory;
 import org.matsim.core.router.util.LeastCostPathCalculator;
 import org.matsim.core.router.util.TravelDisutility;
 import org.matsim.core.router.util.TravelTime;
+import org.matsim.core.scenario.ProjectionUtils;
 import org.matsim.core.trafficmonitoring.FreeSpeedTravelTime;
 import org.matsim.core.utils.geometry.CoordUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.transformations.TransformationFactory;
-import org.matsim.core.utils.gis.GeoFileReader;
 import org.matsim.core.utils.io.IOUtils;
 import picocli.CommandLine;
 
 import java.io.BufferedReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -60,9 +59,9 @@ class DetermineAverageTruckLoad implements MATSimAppCommand {
 		defaultValue = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/Jawe2019.csv")
 	private String trafficCount;
 
-	@CommandLine.Option(names = "--nuts", description = "Path to the NUTS shape file",
-		defaultValue = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/shp/NUTS_RG_20M_2016_4326.shp/NUTS_RG_20M_2016_4326.shp")
-	private String nutsPath;
+	@CommandLine.Option(names = "--NUTS-crs", description = "CRS of the NUTS shape file",
+		defaultValue = "EPSG:4326")
+	private String nutsCrs;
 
 	@CommandLine.Option(names = "--network", description = "Path to the network",
 		defaultValue = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/germany-europe-network.xml.gz")
@@ -82,10 +81,6 @@ class DetermineAverageTruckLoad implements MATSimAppCommand {
 	@CommandLine.Mixin
 	private CrsOptions crs = new CrsOptions();
 
-	private final Random random = new Random(1234);
-	private final static String NUTS_CRS = "EPSG:4326";
-	private static final String NETWORK_CRS = "EPSG:25832";
-
 	public static void main(String[] args) {
 		new DetermineAverageTruckLoad().execute(args);
 	}
@@ -93,7 +88,7 @@ class DetermineAverageTruckLoad implements MATSimAppCommand {
 	@Override
 	public Integer call() throws Exception {
 		Network network = NetworkUtils.readNetwork(networkPath);
-		CoordinateTransformation ct = TransformationFactory.getCoordinateTransformation(NUTS_CRS, NETWORK_CRS);
+		CoordinateTransformation ct = TransformationFactory.getCoordinateTransformation(nutsCrs, ProjectionUtils.getCRS(network));
 
 		// Read lookup table
 		Map<String, Id<Link>> cellToLinkIdMapping = new HashMap<>();
@@ -111,12 +106,6 @@ class DetermineAverageTruckLoad implements MATSimAppCommand {
 				cellToLinkIdMapping.put(cell, link.getId());
 			}
 		}
-
-		// Read shape file // TODO this is acutally not needed. Just testing the functionality of reading shape file from URL. Delete afterwards!!!
-		List<SimpleFeature> nutsFeatures = GeoFileReader.getAllFeatures(URI.create(nutsPath).toURL()).
-			stream().filter(f -> relevantNutsIds.contains(f.getAttribute("NUTS_ID").toString())).
-			toList();
-		System.out.println("There are " + nutsFeatures.size() + " relevant NUTS regions");
 
 		// Read counting data
 		Map<Id<Link>, Double> referenceCounts = new HashMap<>();

@@ -95,11 +95,11 @@ class GenerateLookupTable implements MATSimAppCommand {
                     incompleteCellLists.add(new String[]{verkerhszelle, name});
                 } else {
                     TrafficCellCoreData coreData = coreDataLookupTable.get(verkerhszelle);
-                    if (coreData.getNuts2021().isEmpty()) {
+                    if (coreData.nuts2021().isEmpty()) {
                         incompleteCellLists.add(new String[]{verkerhszelle, name});
                     } else {
-                        String nuts2006 = coreData.getNuts2006();
-                        String nuts2021 = coreData.getNuts2021();
+                        String nuts2006 = coreData.nuts2006();
+                        String nuts2021 = coreData.nuts2021();
                         String nuts2021Name = getNutsName(featuresNuts2021, nuts2021);
                         Coord coord = getBackupCoord(featuresNuts2021, nuts2021);
                         tsvWriter.printRecord(verkerhszelle, name, nuts2006, nuts2021, nuts2021Name, coord.getX(), coord.getY());
@@ -110,7 +110,7 @@ class GenerateLookupTable implements MATSimAppCommand {
             for (String[] verkehrszelleAndName : incompleteCellLists) {
                 String verkehrszelle = verkehrszelleAndName[0];
                 String name = verkehrszelleAndName[1];
-                String nuts2006 = coreDataLookupTable.getOrDefault(verkehrszelle, new TrafficCellCoreData(verkehrszelle, name)).getNuts2006();
+                String nuts2006 = coreDataLookupTable.getOrDefault(verkehrszelle, new TrafficCellCoreData(verkehrszelle, name)).nuts2006();
                 tsvWriter.printRecord(verkehrszelle, name, nuts2006);
             }
         }
@@ -140,40 +140,10 @@ class GenerateLookupTable implements MATSimAppCommand {
         return "unknown";
     }
 
-    private static class TrafficCellCoreData {
-        private final String verkehrszelle;
-        private final String name;
-        private final String nuts2006;
-        private final String nuts2021;
+	private record TrafficCellCoreData(String verkehrszelle, String name, String nuts2006, String nuts2021) {
 
-        TrafficCellCoreData(String verkehrszelle, String name, String nuts2006, String nuts2021) {
-            this.verkehrszelle = verkehrszelle;
-            this.name = name;
-            this.nuts2006 = nuts2006;
-            this.nuts2021 = nuts2021;
-        }
-
-        TrafficCellCoreData(String verkehrszelle, String name) {
-            this.verkehrszelle = verkehrszelle;
-            this.name = name;
-            this.nuts2006 = "";
-            this.nuts2021 = "";
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public String getVerkehrszelle() {
-            return verkehrszelle;
-        }
-
-        public String getNuts2006() {
-            return nuts2006;
-        }
-
-        public String getNuts2021() {
-            return nuts2021;
-        }
-    }
+		TrafficCellCoreData(String verkehrszelle, String name) {
+			this(verkehrszelle, name, "", "");
+		}
+	}
 }

@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
  */
 class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalculator {
 	private final static Logger logger = LogManager.getLogger(DefaultLocationCalculator.class);
+	// This CRS is used as a backup for the longitude, latitude coordinates for the international locations where we don't have a network.
+	private static final String CRS_BACKUP_LONG_LAT = "EPSG:4326";
 	private final Random rnd = new Random(5678);
 	private final LanduseOptions landUse;
 	private final Network network;
@@ -71,8 +73,7 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 			}
 		}
 
-
-		ShpOptions.Index shpIndex = shp.createIndex("EPSG:25832", "NUTS_ID", ft -> relevantNutsIds.contains(Objects.toString(ft.getAttribute("NUTS_ID"))));
+		ShpOptions.Index shpIndex = shp.createIndex(shp.getShapeCrs(), "NUTS_ID", ft -> relevantNutsIds.contains(Objects.toString(ft.getAttribute("NUTS_ID"))));
 		// This creates an index.  One will be able to put in coordinates, and get out NUTS_IDs.  Those NUTS_IDs can be filtered down to those which
 		// are in relevantNutsIDs.  The query coordinate system is given.  The index will automatically transform it to the coordinate system of the
 		// shapefile, and then do the query.  What comes back is an attribute value, which has nothing to do with a coordinate system.
@@ -80,7 +81,7 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 		ShpOptions.Index landIndex = null;
 		if (landUse != null) {
 			logger.info("Reading land use data...");
-			landIndex = landUse.getIndex("EPSG:25832");
+			landIndex = landUse.getIndex(ProjectionUtils.getCRS(network));
 			//TODO check if the land use reader functions properly
 		}
 
