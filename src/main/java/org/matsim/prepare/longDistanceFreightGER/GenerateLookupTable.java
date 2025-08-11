@@ -57,7 +57,7 @@ class GenerateLookupTable implements MATSimAppCommand {
                 new GermanNutsTransformation(german2006shp, nuts2021shp).getNuts2006To2021Mapping();
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(germanTable.toString()), StandardCharsets.UTF_8)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
+				.setSkipHeaderRecord(true).get().parse(reader);
             for (CSVRecord record : parser) {
                 String verkerhszelle = record.get(0);
                 String name = record.get(1);
@@ -70,7 +70,7 @@ class GenerateLookupTable implements MATSimAppCommand {
         // Read international lookup table
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(internationalTable.toString()), StandardCharsets.UTF_8)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(',').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
+				.setSkipHeaderRecord(true).get().parse(reader);
             for (CSVRecord record : parser) {
                 String verkerhszelle = record.get(0);
                 String name = record.get(1);
@@ -86,7 +86,7 @@ class GenerateLookupTable implements MATSimAppCommand {
         tsvWriter.printRecord("verkehrszelle", "name", "NUTS_2006", "NUTS_2021", "NUTS_2021_name", "coord_x", "coord_y");
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(input.toString()), StandardCharsets.ISO_8859_1)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
+				.setSkipHeaderRecord(true).get().parse(reader);
             List<String[]> incompleteCellLists = new ArrayList<>();
             for (CSVRecord record : parser) {
                 String verkerhszelle = record.get(0);

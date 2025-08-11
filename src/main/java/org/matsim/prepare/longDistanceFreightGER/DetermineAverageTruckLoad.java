@@ -6,7 +6,6 @@ import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.geotools.api.feature.simple.SimpleFeature;
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Identifiable;
@@ -95,7 +94,7 @@ class DetermineAverageTruckLoad implements MATSimAppCommand {
 		List<String> relevantNutsIds = new ArrayList<>();
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(lookupTablePath), StandardCharsets.UTF_8)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
+				.setSkipHeaderRecord(true).get().parse(reader);
 			for (CSVRecord record : parser) {
 				String cell = record.get(0);
 				String nutsId = record.get(3);
@@ -111,7 +110,7 @@ class DetermineAverageTruckLoad implements MATSimAppCommand {
 		Map<Id<Link>, Double> referenceCounts = new HashMap<>();
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(trafficCount), StandardCharsets.ISO_8859_1)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
+				.setSkipHeaderRecord(true).get().parse(reader);
 			for (CSVRecord record : parser) {
 				String totalCountString = record.get(37).replace(".", "");
 				if (!totalCountString.isEmpty() && !totalCountString.equals("0")) {
@@ -153,7 +152,7 @@ class DetermineAverageTruckLoad implements MATSimAppCommand {
 		List<GoodsFlow> goodsFlows = new ArrayList<>();
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(freightData), StandardCharsets.ISO_8859_1)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
+				.setSkipHeaderRecord(true).get().parse(reader);
 			for (CSVRecord record : parser) {
 				// Vorlauf
 				String modeVL = record.get(6);

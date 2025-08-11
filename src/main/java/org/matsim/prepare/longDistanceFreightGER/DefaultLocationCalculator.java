@@ -65,7 +65,7 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 		Set<String> relevantNutsIds = new HashSet<>();
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.resolveFileOrResource(lookUpTablePath), StandardCharsets.UTF_8)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
+				.setSkipHeaderRecord(true).get().parse(reader);
 			for (CSVRecord record : parser) {
 				if (!record.get(3).isEmpty()) {
 					relevantNutsIds.add(record.get(3));
@@ -114,8 +114,8 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 		logger.info("Computing mapping between Verkehrszelle and departure location...");
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.resolveFileOrResource(lookUpTablePath), StandardCharsets.UTF_8)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
-			CoordinateTransformation ct = new GeotoolsTransformation("EPSG:4326", ProjectionUtils.getCRS(network));
+				.setSkipHeaderRecord(true).get().parse(reader);
+			CoordinateTransformation ct = new GeotoolsTransformation(CRS_BACKUP_LONG_LAT, ProjectionUtils.getCRS(network));
 //			CoordinateTransformation ct = new GeotoolsTransformation("EPSG:4326", "EPSG:25832");
 			// yyyy the second coordinate system should not be manually set here, but should come from the network. kai, aug'25
 
