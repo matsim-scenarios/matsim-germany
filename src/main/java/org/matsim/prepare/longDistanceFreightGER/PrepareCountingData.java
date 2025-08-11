@@ -63,7 +63,7 @@ class PrepareCountingData implements MATSimAppCommand {
 			"station_x", "station_y");
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(rawDataPath.toString()), StandardCharsets.ISO_8859_1)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
+				.setSkipHeaderRecord(true).get().parse(reader);
 			for (CSVRecord record : parser) {
 				String totalCountString = record.get(37).replace(".", "");
 				if (!totalCountString.isEmpty() && !totalCountString.equals("0")) {
