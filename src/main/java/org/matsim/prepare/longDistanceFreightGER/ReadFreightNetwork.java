@@ -1,4 +1,4 @@
-package org.matsim.prepare.longDistanceFreightGER.dataPreparation;
+package org.matsim.prepare.longDistanceFreightGER;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,7 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class ReadFreightNetwork implements MATSimAppCommand {
+class ReadFreightNetwork implements MATSimAppCommand {
     private static final Logger log = LogManager.getLogger(ReadFreightNetwork.class);
 
     @CommandLine.Option(names = "--input", description = "input pbf file", required = true)
