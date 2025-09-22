@@ -13,7 +13,7 @@
 		<groupId>org.matsim</groupId>
 		<artifactId>matsim-all</artifactId>
 <!--		<version>2026.0-PR3957</version>-->
-		<version>2026.0-2025w38</version>
+		<version>2026.0-2025w39</version>
 <!--        <version>2026.0-SNAPSHOT</version>-->
 	</parent>
 
@@ -238,7 +238,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-shade-plugin</artifactId>
-				<version>3.6.0</version>
+				<version>3.6.1</version>
 				<executions>
 					<execution>
 						<phase>package</phase>
