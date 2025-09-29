@@ -1,4 +1,4 @@
-package org.matsim.prepare.longDistanceFreightGER.dataPreparation;
+package org.matsim.prepare.longDistanceFreightGER;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -30,7 +30,7 @@ import java.util.List;
 	description = "Prepare the freight traffic count data",
 	showDefaultValues = true
 )
-public class PrepareCountingData implements MATSimAppCommand {
+class PrepareCountingData implements MATSimAppCommand {
 	@CommandLine.Option(names = "--data", description = "Path to the raw data", required = true)
 	private Path rawDataPath;
 
@@ -63,7 +63,7 @@ public class PrepareCountingData implements MATSimAppCommand {
 			"station_x", "station_y");
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(rawDataPath.toString()), StandardCharsets.ISO_8859_1)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
+				.setSkipHeaderRecord(true).get().parse(reader);
 			for (CSVRecord record : parser) {
 				String totalCountString = record.get(37).replace(".", "");
 				if (!totalCountString.isEmpty() && !totalCountString.equals("0")) {

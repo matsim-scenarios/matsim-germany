@@ -14,9 +14,13 @@ hs_err_pid*
 /.project
 /.classpath
 /target/
-/output/
+/output*
 /bin/
+/test/output/
 
 /.idea/
 *.iml
+
+# Mac file
+*.DS_Store
 /.DS_Store

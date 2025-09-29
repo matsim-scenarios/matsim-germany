@@ -1,4 +1,4 @@
-package org.matsim.prepare.longDistanceFreightGER.tripGeneration;
+package org.matsim.prepare.longDistanceFreightGER;
 
 import java.util.Random;
 
