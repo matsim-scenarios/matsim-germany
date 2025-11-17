@@ -1,4 +1,4 @@
-package org.matsim.prepare.longDistanceFreightGER.tripGeneration;
+package org.matsim.prepare.longDistanceFreightGER;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
@@ -12,13 +12,18 @@ import org.matsim.application.options.LanduseOptions;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.PopulationUtils;
+import org.matsim.core.scenario.ProjectionUtils;
 import picocli.CommandLine;
 
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Set;
 
 @CommandLine.Command(
         name = "generate-freight-plans",
@@ -26,6 +31,10 @@ import java.util.List;
         showDefaultValues = true
 )
 public class GenerateFreightPlans implements MATSimAppCommand {
+	// There are lots of hardcoded things in this whole package.  They should be sorted out and centralized.
+	// In particular, the coordinate transforms are hardcoded, instead of beging centralized and/or taken from files.  In particular, they are not
+	// taken from the shp files.
+
     private static final Logger log = LogManager.getLogger(GenerateFreightPlans.class);
 
     @CommandLine.Option(names = "--data", description = "Path to raw data (ketten 2010)",
@@ -36,9 +45,9 @@ public class GenerateFreightPlans implements MATSimAppCommand {
             defaultValue = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/germany-europe-network.xml.gz")
     private String networkPath;
 
-    @CommandLine.Option(names = "--nuts", description = "Path to NUTS file (available on SVN: )", required = true)
-    // TODO Change this to URL pointing to SVN--> need to update the Location calculator
-    private Path shpPath;
+    @CommandLine.Option(names = "--nuts", description = "Path to NUTS file (shape file)",
+		defaultValue= "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/shp/NUTS_RG_20M_2016_25832.shp/NUTS_RG_20M_2016_25832.shp")
+    private String shpPath;
 
     @CommandLine.Option(names = "--output", description = "Output folder path", required = true)
     private Path output;
@@ -52,15 +61,33 @@ public class GenerateFreightPlans implements MATSimAppCommand {
     @CommandLine.Option(names = "--sample", defaultValue = "100", description = "Sample size of the freight plans (0, 100]")
     private double pct;
 
-    @CommandLine.Mixin
-    private LanduseOptions landuse = new LanduseOptions();
+	@CommandLine.Option(names = "--land-use-filter", description = "specify land use type to filter out starting locations. Empty means no filter",
+		arity = "0..*", split = ",", defaultValue = "industrial,commercial,retail")
+	private Set<String> landUseTypes;
 
     @Override
     public Integer call() throws Exception {
+		if (!Files.exists(output)) {
+			Files.createDirectory(output);
+		}
+
+		// download land use shp (we need this because GeoTools cannot handle land use shp from URL properly)
+		if (!landUseTypes.isEmpty()){
+			downloadLanduseShp();
+		}
+
         Network network = NetworkUtils.readNetwork(networkPath);
         log.info("Network successfully loaded!");
 
+		String targetCRS = ProjectionUtils.getCRS( network );
+		// yyyy There are several other places in the package where CRSes are manually set.
+
         log.info("preparing freight agent generator...");
+//		LanduseOptions landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", Set.of("industrial", "commercial", "retail"));
+		LanduseOptions landuse = null;
+		if (!landUseTypes.isEmpty()){
+			landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", landUseTypes);
+		}
         FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuse, averageTruckLoad, workingDays, pct / 100);
         log.info("Freight agent generator successfully created!");
 
@@ -70,6 +97,9 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 
         log.info("Start generating population...");
         Population outputPopulation = PopulationUtils.createPopulation(ConfigUtils.createConfig());
+
+		ProjectionUtils.putCRS( outputPopulation, targetCRS );
+
         for (int i = 0; i < tripRelations.size(); i++) {
             List<Person> persons = freightAgentGenerator.generateFreightAgents(tripRelations.get(i), Integer.toString(i));
             for (Person person : persons) {
@@ -80,11 +110,6 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 				log.info("Processing: {} out of {} entries have been processed", i, tripRelations.size());
             }
         }
-
-        if (!Files.exists(output)) {
-            Files.createDirectory(output);
-        }
-
         String outputPlansPath = output.toString() + "/german_freight." + pct + "pct.plans.xml.gz";
         PopulationWriter populationWriter = new PopulationWriter(outputPopulation);
         populationWriter.write(outputPlansPath);
@@ -112,6 +137,43 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 	}
 
 	public static void main(String[] args) {
+		if ( args==null || args.length==0 ) {
+			args = new String[] {
+					"--output", "output-longDistanceFreightGER"
+					,"--sample", "0.001"
+					,"--land-use-filter" // only for testing!
+			};
+		}
         new GenerateFreightPlans().execute(args);
     }
+
+	private void downloadLanduseShp() throws IOException {
+		Path targetDir = output.resolve("landuse-shp");
+		if (Files.exists(targetDir)){
+			log.info("Land use shp folder already existed. It will not be downloaded again.");
+			return;
+		}
+		Files.createDirectories(targetDir);
+
+		// download shp from svn
+		String baseUrl = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/shp/landuse/";
+		List<String> fileNames = List.of(
+			"landuse.shp",
+			"landuse.dbf",
+			"landuse.shx",
+			"landuse.prj",
+			"landuse.fix"
+		);
+		for (String fileName : fileNames) {
+			String fileUrl = baseUrl + fileName;
+			Path outputPath = targetDir.resolve(fileName);
+			System.out.println("Downloading " + fileName + "...");
+
+			try (InputStream in = URI.create(fileUrl).toURL().openStream()) {
+				Files.copy(in, outputPath, StandardCopyOption.REPLACE_EXISTING);
+			}
+
+			System.out.println("Saved to " + outputPath);
+		}
+	}
 }
