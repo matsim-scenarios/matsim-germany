@@ -1,4 +1,4 @@
-package org.matsim.prepare.longDistanceFreightGER.dataPreparation;
+package org.matsim.prepare.longDistanceFreightGER;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -6,7 +6,6 @@ import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.geotools.api.feature.simple.SimpleFeature;
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Identifiable;
@@ -23,18 +22,17 @@ import org.matsim.core.router.speedy.SpeedyALTFactory;
 import org.matsim.core.router.util.LeastCostPathCalculator;
 import org.matsim.core.router.util.TravelDisutility;
 import org.matsim.core.router.util.TravelTime;
+import org.matsim.core.scenario.ProjectionUtils;
 import org.matsim.core.trafficmonitoring.FreeSpeedTravelTime;
 import org.matsim.core.utils.geometry.CoordUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.transformations.TransformationFactory;
-import org.matsim.core.utils.gis.GeoFileReader;
 import org.matsim.core.utils.io.IOUtils;
 import picocli.CommandLine;
 
 import java.io.BufferedReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,7 +44,7 @@ import java.util.stream.Collectors;
 	description = "Determine the average truck load based on count data",
 	showDefaultValues = true
 )
-public class DetermineAverageTruckLoad implements MATSimAppCommand {
+class DetermineAverageTruckLoad implements MATSimAppCommand {
 	private static final Logger log = LogManager.getLogger(DetermineAverageTruckLoad.class);
 
 	@CommandLine.Option(names = "--output", description = "Path to the traffic count data", required = true)
@@ -60,9 +58,9 @@ public class DetermineAverageTruckLoad implements MATSimAppCommand {
 		defaultValue = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/Jawe2019.csv")
 	private String trafficCount;
 
-	@CommandLine.Option(names = "--nuts", description = "Path to the NUTS shape file",
-		defaultValue = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/shp/NUTS_RG_20M_2016_4326.shp/NUTS_RG_20M_2016_4326.shp")
-	private String nutsPath;
+	@CommandLine.Option(names = "--NUTS-crs", description = "CRS of the NUTS shape file",
+		defaultValue = "EPSG:4326")
+	private String nutsCrs;
 
 	@CommandLine.Option(names = "--network", description = "Path to the network",
 		defaultValue = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/germany-europe-network.xml.gz")
@@ -82,10 +80,6 @@ public class DetermineAverageTruckLoad implements MATSimAppCommand {
 	@CommandLine.Mixin
 	private CrsOptions crs = new CrsOptions();
 
-	private final Random random = new Random(1234);
-	private final static String NUTS_CRS = "EPSG:4326";
-	private static final String NETWORK_CRS = "EPSG:25832";
-
 	public static void main(String[] args) {
 		new DetermineAverageTruckLoad().execute(args);
 	}
@@ -93,14 +87,14 @@ public class DetermineAverageTruckLoad implements MATSimAppCommand {
 	@Override
 	public Integer call() throws Exception {
 		Network network = NetworkUtils.readNetwork(networkPath);
-		CoordinateTransformation ct = TransformationFactory.getCoordinateTransformation(NUTS_CRS, NETWORK_CRS);
+		CoordinateTransformation ct = TransformationFactory.getCoordinateTransformation(nutsCrs, ProjectionUtils.getCRS(network));
 
 		// Read lookup table
 		Map<String, Id<Link>> cellToLinkIdMapping = new HashMap<>();
 		List<String> relevantNutsIds = new ArrayList<>();
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(lookupTablePath), StandardCharsets.UTF_8)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
+				.setSkipHeaderRecord(true).get().parse(reader);
 			for (CSVRecord record : parser) {
 				String cell = record.get(0);
 				String nutsId = record.get(3);
@@ -112,17 +106,11 @@ public class DetermineAverageTruckLoad implements MATSimAppCommand {
 			}
 		}
 
-		// Read shape file // TODO this is acutally not needed. Just testing the functionality of reading shape file from URL. Delete afterwards!!!
-		List<SimpleFeature> nutsFeatures = GeoFileReader.getAllFeatures(URI.create(nutsPath).toURL()).
-			stream().filter(f -> relevantNutsIds.contains(f.getAttribute("NUTS_ID").toString())).
-			toList();
-		System.out.println("There are " + nutsFeatures.size() + " relevant NUTS regions");
-
 		// Read counting data
 		Map<Id<Link>, Double> referenceCounts = new HashMap<>();
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(trafficCount), StandardCharsets.ISO_8859_1)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
+				.setSkipHeaderRecord(true).get().parse(reader);
 			for (CSVRecord record : parser) {
 				String totalCountString = record.get(37).replace(".", "");
 				if (!totalCountString.isEmpty() && !totalCountString.equals("0")) {
@@ -164,7 +152,7 @@ public class DetermineAverageTruckLoad implements MATSimAppCommand {
 		List<GoodsFlow> goodsFlows = new ArrayList<>();
 		try (BufferedReader reader = IOUtils.getBufferedReader(IOUtils.getFileUrl(freightData), StandardCharsets.ISO_8859_1)) {
 			CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader()
-				.setSkipHeaderRecord(true).build().parse(reader);
+				.setSkipHeaderRecord(true).get().parse(reader);
 			for (CSVRecord record : parser) {
 				// Vorlauf
 				String modeVL = record.get(6);
