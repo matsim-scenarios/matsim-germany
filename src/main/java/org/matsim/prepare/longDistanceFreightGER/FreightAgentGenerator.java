@@ -1,4 +1,4 @@
-package org.matsim.prepare.longDistanceFreightGER.tripGeneration;
+package org.matsim.prepare.longDistanceFreightGER;
 
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.network.Link;
@@ -8,7 +8,6 @@ import org.matsim.application.options.LanduseOptions;
 import org.matsim.core.population.PopulationUtils;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.*;
 
 class FreightAgentGenerator {
@@ -18,7 +17,7 @@ class FreightAgentGenerator {
     private final PopulationFactory populationFactory;
     private final Network network;
 
-    public FreightAgentGenerator(Network network, Path shpPath, LanduseOptions landUse, double averageLoad, int workingDays, double sample) throws IOException {
+    public FreightAgentGenerator(Network network, String shpPath, LanduseOptions landUse, double averageLoad, int workingDays, double sample) throws IOException {
         this.locationCalculator = new DefaultLocationCalculator(network, shpPath, landUse);
         this.departureTimeCalculator = new DefaultDepartureTimeCalculator();
         this.numOfTripsCalculator = new DefaultNumberOfTripsCalculator(averageLoad, workingDays, sample);
@@ -44,7 +43,7 @@ class FreightAgentGenerator {
                 Plan plan = populationFactory.createPlan();
                 double departureTime = departureTimeCalculator.getDepartureTime();
 
-                Id<Link> startLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getOriginalCell());
+                Id<Link> startLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getOriginCell());
                 Activity startAct = populationFactory.createActivityFromLinkId("freight_start", startLinkId);
                 startAct.setCoord(network.getLinks().get(startLinkId).getToNode().getCoord());
                 startAct.setEndTime(departureTime);
@@ -53,7 +52,7 @@ class FreightAgentGenerator {
                 Leg leg = populationFactory.createLeg("freight");
                 plan.addLeg(leg);
 
-                Id<Link> endLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getOriginalCellMainRun());
+                Id<Link> endLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getOriginCellMainRun());
                 Activity endAct = populationFactory.createActivityFromLinkId("freight_end", endLinkId);
                 endAct.setCoord(network.getLinks().get(endLinkId).getToNode().getCoord());
                 plan.addActivity(endAct);
@@ -71,7 +70,7 @@ class FreightAgentGenerator {
                 Plan plan = populationFactory.createPlan();
                 double departureTime = departureTimeCalculator.getDepartureTime();
 
-                Id<Link> startLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getOriginalCellMainRun());
+                Id<Link> startLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getOriginCellMainRun());
                 Activity startAct = populationFactory.createActivityFromLinkId("freight_start", startLinkId);
                 startAct.setEndTime(departureTime);
                 startAct.setCoord(network.getLinks().get(startLinkId).getToNode().getCoord());
@@ -130,8 +129,8 @@ class FreightAgentGenerator {
         person.getAttributes().putAttribute("pre-run_mode", tripRelation.getModePreRun());
         person.getAttributes().putAttribute("main-run_mode", tripRelation.getModeMainRun());
         person.getAttributes().putAttribute("post-run_mode", tripRelation.getModePostRun());
-        person.getAttributes().putAttribute("initial_origin_cell", tripRelation.getOriginalCell());
-        person.getAttributes().putAttribute("origin_cell_main_run", tripRelation.getDestinationCellMainRun());
+        person.getAttributes().putAttribute("initial_origin_cell", tripRelation.getOriginCell());
+        person.getAttributes().putAttribute("origin_cell_main_run", tripRelation.getOriginCellMainRun());
         person.getAttributes().putAttribute("destination_cell_main_run", tripRelation.getDestinationCellMainRun());
         person.getAttributes().putAttribute("final_destination_cell", tripRelation.getDestinationCell());
         person.getAttributes().putAttribute("goods_type", tripRelation.getGoodsType());
