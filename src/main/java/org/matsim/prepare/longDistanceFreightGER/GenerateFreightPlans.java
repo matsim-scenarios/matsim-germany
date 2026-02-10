@@ -35,6 +35,10 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 	// In particular, the coordinate transforms are hardcoded, instead of beging centralized and/or taken from files.  In particular, they are not
 	// taken from the shp files.
 
+	// The germany-europe-network.xml differs from the network created in RunCreateNetworkFromOSM and we don't know where it comes from.
+
+	// The code here uses germany-wide-freight in public-svn. This should not exist separately and needs to be merged into matsim-germany.
+
     private static final Logger log = LogManager.getLogger(GenerateFreightPlans.class);
 
     @CommandLine.Option(names = "--data", description = "Path to raw data (ketten 2010)",
