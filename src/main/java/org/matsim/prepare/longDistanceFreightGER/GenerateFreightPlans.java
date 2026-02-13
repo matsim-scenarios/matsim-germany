@@ -59,6 +59,10 @@ public class GenerateFreightPlans implements MATSimAppCommand {
     @CommandLine.Option(names = "--truck-load", defaultValue = "13.0", description = "Average load of truck")
     private double averageTruckLoad;
 
+	// actual train loads vary between a single car load (<50 t) and several thousand tons.
+	@CommandLine.Option(names = "--train-load", defaultValue = "100.0", description = "Average load of train")
+	private double averageTrainLoad;
+
     @CommandLine.Option(names = "--working-days", defaultValue = "260", description = "Number of working days in a year")
     private int workingDays;
 
@@ -92,7 +96,7 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 		if (!landUseTypes.isEmpty()){
 			landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", landUseTypes);
 		}
-        FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuse, averageTruckLoad, workingDays, pct / 100);
+        FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuse, averageTruckLoad, averageTrainLoad, workingDays, pct / 100);
         log.info("Freight agent generator successfully created!");
 
         log.info("Reading trip relations...");

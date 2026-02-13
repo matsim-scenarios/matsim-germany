@@ -11,17 +11,21 @@ import java.io.IOException;
 import java.util.*;
 
 class FreightAgentGenerator {
-    private final LocationCalculator locationCalculator;
-    private final DepartureTimeCalculator departureTimeCalculator;
-    private final NumOfTripsCalculator numOfTripsCalculator;
+    private final LocationCalculator roadLocationCalculator;
+	private final LocationCalculator railwayLocationCalculator;
+	private final DepartureTimeCalculator departureTimeCalculator;
+    private final NumOfTripsCalculator numOfTruckTripsCalculator;
+	private final NumOfTripsCalculator numOfTrainTripsCalculator;
     private final PopulationFactory populationFactory;
     private final Network network;
 
-    public FreightAgentGenerator(Network network, String shpPath, LanduseOptions landUse, double averageLoad, int workingDays, double sample) throws IOException {
-        this.locationCalculator = new DefaultLocationCalculator(network, shpPath, landUse);
-        this.departureTimeCalculator = new DefaultDepartureTimeCalculator();
-        this.numOfTripsCalculator = new DefaultNumberOfTripsCalculator(averageLoad, workingDays, sample);
-        this.populationFactory = PopulationUtils.getFactory();
+    public FreightAgentGenerator(Network network, String shpPath, LanduseOptions landUse, double averageTruckLoad, double averageTrainLoad, int workingDays, double sample) throws IOException {
+        this.roadLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse);
+		this.railwayLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse);// TODO other implementation
+		this.departureTimeCalculator = new DefaultDepartureTimeCalculator();
+        this.numOfTruckTripsCalculator = new DefaultNumberOfTripsCalculator(averageTruckLoad, workingDays, sample);
+		this.numOfTrainTripsCalculator = new DefaultNumberOfTripsCalculator(averageTrainLoad, workingDays, sample);
+		this.populationFactory = PopulationUtils.getFactory();
         this.network = network;
     }
 
@@ -31,98 +35,91 @@ class FreightAgentGenerator {
         String mainRunMode = tripRelation.getModeMainRun();
         String postRunMode = tripRelation.getModePostRun();
 
-        if (!preRunMode.equals("2") && !mainRunMode.equals("2") && !postRunMode.equals("2")) {
-            return freightAgents; // This trip relation is irrelevant as it does not contain any freight by road
-        }
+        int numOfTruckTrips = numOfTruckTripsCalculator.calculateNumberOfTrips(tripRelation.getTonsPerYear(), tripRelation.getGoodsType());
+		int numOfTrainTrips = numOfTrainTripsCalculator.calculateNumberOfTrips(tripRelation.getTonsPerYear(), tripRelation.getGoodsType());
 
-        int numOfTrips = numOfTripsCalculator.calculateNumberOfTrips(tripRelation.getTonsPerYear(), tripRelation.getGoodsType());
-        for (int i = 0; i < numOfTrips; i++) {
-            // pre-run
-            if (preRunMode.equals("2")) {
-                Person person = populationFactory.createPerson(Id.createPersonId("freight_" + tripRelationId + "_" + i + "_pre"));
-                Plan plan = populationFactory.createPlan();
-                double departureTime = departureTimeCalculator.getDepartureTime();
+		if (preRunMode.equals(TripRelation.ModesInputData.road)) {
+			for (int i = 0; i < numOfTruckTrips; i++) {
+				String preMainPost = "pre";
+				String startCell = tripRelation.getOriginCell();
+				String endCell = tripRelation.getOriginCellMainRun();
+				String mode = "freight";
+				LocationCalculator locationCalculator = roadLocationCalculator;
 
-                Id<Link> startLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getOriginCell());
-                Activity startAct = populationFactory.createActivityFromLinkId("freight_start", startLinkId);
-                startAct.setCoord(network.getLinks().get(startLinkId).getToNode().getCoord());
-                startAct.setEndTime(departureTime);
-                plan.addActivity(startAct);
+				createTrip(tripRelation, tripRelationId, mode, i, preMainPost, locationCalculator, startCell, endCell, freightAgents);
+			}
+		}
 
-                Leg leg = populationFactory.createLeg("freight");
-                plan.addLeg(leg);
+		// main-run is railway
+		if (mainRunMode.equals(TripRelation.ModesInputData.rail)) {
+			for (int i = 0; i < numOfTrainTrips; i++) {
+				String preMainPost = "main";
+				String startCell = tripRelation.getOriginCellMainRun();
+				String endCell = tripRelation.getDestinationCellMainRun();
+				String mode = "freightRail";
+				LocationCalculator locationCalculator = railwayLocationCalculator;
 
-                Id<Link> endLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getOriginCellMainRun());
-                Activity endAct = populationFactory.createActivityFromLinkId("freight_end", endLinkId);
-                endAct.setCoord(network.getLinks().get(endLinkId).getToNode().getCoord());
-                plan.addActivity(endAct);
+				createTrip(tripRelation, tripRelationId, mode, i, preMainPost, locationCalculator, startCell, endCell, freightAgents);
+			}
+		}
 
-                person.addPlan(plan);
-                person.getAttributes().putAttribute("trip_type", "pre-run");
-                writeCommonAttributes(person, tripRelation, tripRelationId);
 
-                freightAgents.add(person);
-            }
+		if (mainRunMode.equals(TripRelation.ModesInputData.road)) {
+			for (int i = 0; i < numOfTruckTrips; i++) {
+				String preMainPost = "main";
+				String startCell = tripRelation.getOriginCellMainRun();
+				String endCell = tripRelation.getDestinationCellMainRun();
+				String mode = "freight";
+				LocationCalculator locationCalculator = roadLocationCalculator;
 
-            // main-run
-            if (mainRunMode.equals("2")) {
-                Person person = populationFactory.createPerson(Id.createPersonId("freight_" + tripRelationId + "_" + i + "_main"));
-                Plan plan = populationFactory.createPlan();
-                double departureTime = departureTimeCalculator.getDepartureTime();
+				createTrip(tripRelation, tripRelationId, mode, i, preMainPost, locationCalculator, startCell, endCell, freightAgents);
+			}
+		}
 
-                Id<Link> startLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getOriginCellMainRun());
-                Activity startAct = populationFactory.createActivityFromLinkId("freight_start", startLinkId);
-                startAct.setEndTime(departureTime);
-                startAct.setCoord(network.getLinks().get(startLinkId).getToNode().getCoord());
-                plan.addActivity(startAct);
+		// post-run
+		if (postRunMode.equals(TripRelation.ModesInputData.road)) {
+			for (int i = 0; i < numOfTruckTrips; i++) {
+				String preMainPost = "post";
+				String startCell = tripRelation.getOriginCellMainRun();
+				String endCell = tripRelation.getDestinationCellMainRun();
+				String mode = "freight";
+				LocationCalculator locationCalculator = roadLocationCalculator;
 
-                Leg leg = populationFactory.createLeg("freight");
-                plan.addLeg(leg);
-
-                Id<Link> endLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getDestinationCellMainRun());
-                Activity endAct = populationFactory.createActivityFromLinkId("freight_end", endLinkId);
-                endAct.setCoord(network.getLinks().get(endLinkId).getToNode().getCoord());
-                plan.addActivity(endAct);
-
-                person.addPlan(plan);
-                person.getAttributes().putAttribute("trip_type", "main-run");
-                writeCommonAttributes(person, tripRelation, tripRelationId);
-
-                freightAgents.add(person);
-            }
-
-            // post-run
-            if (postRunMode.equals("2")) {
-                Person person = populationFactory.createPerson(Id.createPersonId("freight_" + tripRelationId + "_" + i + "_post"));
-                Plan plan = populationFactory.createPlan();
-                double departureTime = departureTimeCalculator.getDepartureTime();
-
-                Id<Link> startLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getDestinationCellMainRun());
-                Activity startAct = populationFactory.createActivityFromLinkId("freight_start", startLinkId);
-                startAct.setCoord(network.getLinks().get(startLinkId).getToNode().getCoord());
-                startAct.setEndTime(departureTime);
-                plan.addActivity(startAct);
-
-                Leg leg = populationFactory.createLeg("freight");
-                plan.addLeg(leg);
-
-                Id<Link> endLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getDestinationCell());
-                Activity endAct = populationFactory.createActivityFromLinkId("freight_end", endLinkId);
-                endAct.setCoord(network.getLinks().get(endLinkId).getToNode().getCoord());
-                plan.addActivity(endAct);
-
-                person.addPlan(plan);
-                person.getAttributes().putAttribute("trip_type", "post-run");
-                writeCommonAttributes(person, tripRelation, tripRelationId);
-
-                freightAgents.add(person);
-            }
-        }
+				createTrip(tripRelation, tripRelationId, mode, i, preMainPost, locationCalculator, startCell, endCell, freightAgents);
+			}
+		}
 
         return freightAgents;
     }
 
-    // TODO store this attribute names as public static strings
+	private void createTrip(TripRelation tripRelation, String tripRelationId, String mode, int i, String preMainPost, LocationCalculator locationCalculator, String startCell, String endCell, List<Person> freightAgents) {
+		Person person = populationFactory.createPerson(Id.createPersonId(mode + "_" + tripRelationId + "_" + i + "_" + preMainPost));
+		Plan plan = populationFactory.createPlan();
+		double departureTime = departureTimeCalculator.getDepartureTime();
+
+		Id<Link> startLinkId = locationCalculator.getLocationOnNetwork(startCell);
+		Activity startAct = populationFactory.createActivityFromLinkId("freight_start", startLinkId);
+		startAct.setCoord(network.getLinks().get(startLinkId).getToNode().getCoord());
+		startAct.setEndTime(departureTime);
+		plan.addActivity(startAct);
+
+		Leg leg = populationFactory.createLeg(mode);
+		leg.getAttributes().putAttribute("tonsPerYear", tripRelation.getTonsPerYear());
+		plan.addLeg(leg);
+
+		Id<Link> endLinkId = locationCalculator.getLocationOnNetwork(endCell);
+		Activity endAct = populationFactory.createActivityFromLinkId("freight_end", endLinkId);
+		endAct.setCoord(network.getLinks().get(endLinkId).getToNode().getCoord());
+		plan.addActivity(endAct);
+
+		person.addPlan(plan);
+		person.getAttributes().putAttribute("trip_type", preMainPost + "-run");
+		writeCommonAttributes(person, tripRelation, tripRelationId);
+
+		freightAgents.add(person);
+	}
+
+	// TODO store this attribute names as public static strings
     private void writeCommonAttributes(Person person, TripRelation tripRelation, String tripRelationId){
         person.getAttributes().putAttribute("subpopulation", "freight");
         person.getAttributes().putAttribute("trip_relation_index", tripRelationId);

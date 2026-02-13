@@ -176,10 +176,12 @@ class TripRelation {
 					for (CSVRecord record : parser) {
 				Builder builder = new Builder();
 				// Read locations
-				builder.originCell(record.get(0)).originCellMainRun(record.get(2)). //TODO chnage to names instead of column numbers
+				builder.originCell(record.get(0)).originCellMainRun(record.get(2)). //TODO change to names instead of column numbers
 					destinationCellMainRun(record.get(3)).destinationCell(record.get(1));
 				// Read trips
-				builder.modePreRun(record.get(6)).modeMainRun(record.get(7)).modePostRun(record.get(8));
+				builder.modePreRun(getModeFromNumber(record.get(6)))
+					.modeMainRun(getModeFromNumber(record.get(7)))
+					.modePostRun(getModeFromNumber(record.get(8)));
 
 				// Read goods type and tons
 				builder.goodsType(record.get(10)).tonsPerYear(Double.parseDouble(record.get(16)));
@@ -189,5 +191,22 @@ class TripRelation {
 			}
 		}
 		return tripRelations;
+	}
+
+	class ModesInputData{
+		static final String unoccupied = "unoccupied";
+		static final String rail = "rail";
+		static final String road = "road";
+		static final String inland_waterway = "inland_waterway";
+	}
+
+	private static String getModeFromNumber(String number) {
+		switch(number) {
+			case "0": return ModesInputData.unoccupied;
+			case "1": return ModesInputData.rail;
+			case "2": return ModesInputData.road;
+			case "3": return ModesInputData.inland_waterway;
+			default: throw new IllegalArgumentException("Mode numbers different from 0 to 3 are undefined.");
+		}
 	}
 }
