@@ -15,16 +15,14 @@ class FreightAgentGenerator {
 	private final LocationCalculator railwayLocationCalculator;
 	private final DepartureTimeCalculator departureTimeCalculator;
     private final NumOfTripsCalculator numOfTruckTripsCalculator;
-	private final NumOfTripsCalculator numOfTrainTripsCalculator;
     private final PopulationFactory populationFactory;
     private final Network network;
 
-    public FreightAgentGenerator(Network network, String shpPath, LanduseOptions landUse, double averageTruckLoad, double averageTrainLoad, int workingDays, double sample) throws IOException {
+    public FreightAgentGenerator(Network network, String shpPath, LanduseOptions landUse, double averageTruckLoad, int workingDays, double sample) throws IOException {
         this.roadLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse);
 		this.railwayLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse);// TODO other implementation
 		this.departureTimeCalculator = new DefaultDepartureTimeCalculator();
         this.numOfTruckTripsCalculator = new DefaultNumberOfTripsCalculator(averageTruckLoad, workingDays, sample);
-		this.numOfTrainTripsCalculator = new DefaultNumberOfTripsCalculator(averageTrainLoad, workingDays, sample);
 		this.populationFactory = PopulationUtils.getFactory();
         this.network = network;
     }
@@ -36,7 +34,8 @@ class FreightAgentGenerator {
         String postRunMode = tripRelation.getModePostRun();
 
         int numOfTruckTrips = numOfTruckTripsCalculator.calculateNumberOfTrips(tripRelation.getTonsPerYear(), tripRelation.getGoodsType());
-		int numOfTrainTrips = numOfTrainTripsCalculator.calculateNumberOfTrips(tripRelation.getTonsPerYear(), tripRelation.getGoodsType());
+		// trains/day is probably 0 for most relations and train loads vary a lot. For the time being have 1 train/year instead
+		int numOfTrainTrips = 1;
 
 		if (preRunMode.equals(TripRelation.ModesInputData.road)) {
 			for (int i = 0; i < numOfTruckTrips; i++) {

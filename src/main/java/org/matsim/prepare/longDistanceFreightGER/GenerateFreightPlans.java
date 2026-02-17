@@ -42,7 +42,7 @@ public class GenerateFreightPlans implements MATSimAppCommand {
     private static final Logger log = LogManager.getLogger(GenerateFreightPlans.class);
 
     @CommandLine.Option(names = "--data", description = "Path to raw data (ketten 2010)",
-            defaultValue = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/ketten-2010.csv")
+            defaultValue = "../shared-svn/studies/countries/de/prognose_2030/GV_matrix_2010_2030_ketten/ketten-2010.csv")
     private String dataPath;
 
     @CommandLine.Option(names = "--network", description = "Path to desired network file",
@@ -58,10 +58,6 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 
     @CommandLine.Option(names = "--truck-load", defaultValue = "13.0", description = "Average load of truck")
     private double averageTruckLoad;
-
-	// actual train loads vary between a single car load (<50 t) and several thousand tons.
-	@CommandLine.Option(names = "--train-load", defaultValue = "100.0", description = "Average load of train")
-	private double averageTrainLoad;
 
     @CommandLine.Option(names = "--working-days", defaultValue = "260", description = "Number of working days in a year")
     private int workingDays;
@@ -96,7 +92,7 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 		if (!landUseTypes.isEmpty()){
 			landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", landUseTypes);
 		}
-        FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuse, averageTruckLoad, averageTrainLoad, workingDays, pct / 100);
+        FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuse, averageTruckLoad, workingDays, pct / 100);
         log.info("Freight agent generator successfully created!");
 
         log.info("Reading trip relations...");
@@ -148,7 +144,7 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 		if ( args==null || args.length==0 ) {
 			args = new String[] {
 					"--output", "output-longDistanceFreightGER"
-					,"--sample", "0.001"
+					,"--sample", "1.0"
 					,"--land-use-filter" // only for testing!
 			};
 		}
