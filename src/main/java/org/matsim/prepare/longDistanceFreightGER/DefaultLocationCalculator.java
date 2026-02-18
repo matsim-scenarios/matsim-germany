@@ -5,8 +5,11 @@ import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.geotools.api.feature.simple.SimpleFeature;
 import org.geotools.referencing.CRS;
 import org.geotools.referencing.util.CRSUtilities;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.Point;
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Identifiable;
@@ -15,11 +18,14 @@ import org.matsim.api.core.v01.network.Network;
 import org.matsim.application.options.CrsOptions;
 import org.matsim.application.options.LanduseOptions;
 import org.matsim.application.options.ShpOptions;
+import org.matsim.core.config.groups.NetworkConfigGroup;
 import org.matsim.core.gbl.Gbl;
 import org.matsim.core.network.NetworkUtils;
+import org.matsim.core.network.filter.NetworkFilterManager;
 import org.matsim.core.scenario.ProjectionUtils;
 import org.matsim.core.utils.geometry.CoordUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
+import org.matsim.core.utils.geometry.geotools.MGC;
 import org.matsim.core.utils.geometry.transformations.GeotoolsTransformation;
 import org.matsim.core.utils.geometry.transformations.IdentityTransformation;
 import org.matsim.core.utils.io.IOUtils;
@@ -40,13 +46,20 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 	private static final String CRS_BACKUP_LONG_LAT = "EPSG:4326";
 	private final Random rnd = new Random(5678);
 	private final LanduseOptions landUse;
+	private final String networkMode;
+	private final SelectLocationInZone selectLocationInZone;
 	private final Network network;
 	private final Map<String, List<Id<Link>>> mapping = new HashMap<>();
 	private final ShpOptions shp;
 	private static final String lookUpTablePath = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/" +
 		"scenarios/countries/de/german-wide-freight/v2/processed-data/complete-lookup-table.csv";
 
-	public DefaultLocationCalculator(Network network, String shpFilePath, LanduseOptions landUse) throws IOException {
+	enum SelectLocationInZone {
+		BY_LAND_USE, ZONE_CENTROID
+	}
+
+	public DefaultLocationCalculator(Network network, String shpFilePath, LanduseOptions landUse, String networkMode,
+									 SelectLocationInZone selectLocationInZone) throws IOException {
 
 //		this.shp = new ShpOptions(shpFilePath, "EPSG:4326", StandardCharsets.ISO_8859_1);
 //		this.shp = new ShpOptions(shpFilePath, "EPSG:25832", StandardCharsets.ISO_8859_1);
@@ -57,6 +70,8 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 		// Reading shapefile from URL may not work properly, therefore, users may need to download the shape file to the local directory
 		this.landUse = landUse;
 		this.network = network;
+		this.networkMode = networkMode;
+		this.selectLocationInZone = selectLocationInZone;
 		prepareMapping();
 	}
 
@@ -78,37 +93,54 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 		// are in relevantNutsIDs.  The query coordinate system is given.  The index will automatically transform it to the coordinate system of the
 		// shapefile, and then do the query.  What comes back is an attribute value, which has nothing to do with a coordinate system.
 
-		ShpOptions.Index landIndex = null;
-		if (landUse != null) {
-			logger.info("Reading land use data...");
-			landIndex = landUse.getIndex(ProjectionUtils.getCRS(network));
-			//TODO check if the land use reader functions properly
-		}
-
-		logger.info("Processing shape network and shapefile...");
-		List<Link> links = network.getLinks().values().stream().filter(l -> l.getAllowedModes().contains("car"))
-			.collect(Collectors.toList());
 		Map<String, List<Link>> nutsToLinksMapping = new HashMap<>();
-		Map<String, List<Link>> filteredNutsToLinksMapping = new HashMap<>();
-		Counter linkCounter = new Counter("link: ", " of " + links.size() );
-		for (Link link : links) {
-			linkCounter.incCounter();
-			String nutsId = shpIndex.query(link.getToNode().getCoord());
-			if (nutsId != null) {
-				nutsToLinksMapping.computeIfAbsent(nutsId, l -> new ArrayList<>()).add(link);
-				if (landIndex != null) {
-					if (!landIndex.contains(link.getToNode().getCoord())) {
-						continue;
+		if (selectLocationInZone == SelectLocationInZone.ZONE_CENTROID) {
+			String networkCrs = (String) network.getAttributes().getAttribute("coordinateReferenceSystem");
+			CoordinateTransformation coordTransformShp2Network = shp.createInverseTransformation(networkCrs);
+			NetworkFilterManager networkFilterManager = new NetworkFilterManager(network, new NetworkConfigGroup());
+			networkFilterManager.addLinkFilter(l -> l.getAllowedModes().contains(networkMode));
+			Network filteredNetwork = networkFilterManager.applyFilters();
+			for (SimpleFeature feature : shpIndex.getAllFeatures()) {
+				Point centroid = ((Geometry) feature.getDefaultGeometry()).getCentroid();
+				Coord centroidMatsim = coordTransformShp2Network.transform(MGC.point2Coord(centroid));
+				Link centerLink = NetworkUtils.getNearestLink(filteredNetwork, centroidMatsim);
+				List<Link> linkList = new ArrayList<>();
+				linkList.add(centerLink);
+				nutsToLinksMapping.put((String) feature.getAttribute("NUTS_ID"), linkList);
+			}
+		} else if (selectLocationInZone == SelectLocationInZone.BY_LAND_USE) {
+			ShpOptions.Index landIndex = null;
+			if (landUse != null) {
+				logger.info("Reading land use data...");
+				landIndex = landUse.getIndex(ProjectionUtils.getCRS(network));
+				//TODO check if the land use reader functions properly
+			}
+
+			logger.info("Processing shape network and shapefile...");
+			List<Link> links = network.getLinks().values().stream().filter(l -> l.getAllowedModes().contains(networkMode))
+				.collect(Collectors.toList());
+			Map<String, List<Link>> filteredNutsToLinksMapping = new HashMap<>();
+			Counter linkCounter = new Counter("link: ", " of " + links.size() );
+			for (Link link : links) {
+				linkCounter.incCounter();
+				String nutsId = shpIndex.query(link.getToNode().getCoord());
+				if (nutsId != null) {
+					nutsToLinksMapping.computeIfAbsent(nutsId, l -> new ArrayList<>()).add(link);
+					if (landIndex != null) {
+						if (!landIndex.contains(link.getToNode().getCoord())) {
+							continue;
+						}
+						filteredNutsToLinksMapping.computeIfAbsent(nutsId, l -> new ArrayList<>()).add(link);
 					}
-					filteredNutsToLinksMapping.computeIfAbsent(nutsId, l -> new ArrayList<>()).add(link);
 				}
+			}
+
+			// When the filtered links list is not empty, then we use the filtered links list. Otherwise, we use the full link lists in the NUTS region.
+			for (String nutsId : filteredNutsToLinksMapping.keySet()) {
+				nutsToLinksMapping.put(nutsId, filteredNutsToLinksMapping.get(nutsId));
 			}
 		}
 
-		// When the filtered links list is not empty, then we use the filtered links list. Otherwise, we use the full link lists in the NUTS region.
-		for (String nutsId : filteredNutsToLinksMapping.keySet()) {
-			nutsToLinksMapping.put(nutsId, filteredNutsToLinksMapping.get(nutsId));
-		}
 		logger.info("Network and shapefile processing complete!");
 
 		logger.info("Computing mapping between Verkehrszelle and departure location...");

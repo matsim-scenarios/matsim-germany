@@ -1,6 +1,7 @@
 package org.matsim.prepare.longDistanceFreightGER;
 
 import org.matsim.api.core.v01.Id;
+import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.*;
@@ -19,8 +20,8 @@ class FreightAgentGenerator {
     private final Network network;
 
     public FreightAgentGenerator(Network network, String shpPath, LanduseOptions landUse, double averageTruckLoad, int workingDays, double sample) throws IOException {
-        this.roadLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse);
-		this.railwayLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse);// TODO other implementation
+        this.roadLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse, TransportMode.car, DefaultLocationCalculator.SelectLocationInZone.BY_LAND_USE);
+		this.railwayLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse, "rail", DefaultLocationCalculator.SelectLocationInZone.ZONE_CENTROID);
 		this.departureTimeCalculator = new DefaultDepartureTimeCalculator();
         this.numOfTruckTripsCalculator = new DefaultNumberOfTripsCalculator(averageTruckLoad, workingDays, sample);
 		this.populationFactory = PopulationUtils.getFactory();

@@ -19,6 +19,8 @@ public class GenerateFreightTripTest {
 
 	@Test
 	public final void test() {
+
+		// TODO: nur erste 10 Zeilen von ketten nehmen und dann 100% Sample
 		assert Files.exists(Path.of(utils.getClassInputDirectory() + "german_freight.0.001pct.plans.xml.gz"));
 
 		String [] args = {
