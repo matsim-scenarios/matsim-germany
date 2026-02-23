@@ -30,11 +30,10 @@ import java.util.stream.Collectors;
 
 
 /**
- * Example on how to convert osm data from e.g. <a href="http://download.geofabrik.de">http://download.geofabrik.de</a> into a MATSim network. This examle puts all
- * motorways and primary roads into the MATSim network. If a link is contained in the supplied shape, also minor and
- * residential raods are put into the MATsim network.
- * <p>
- * After parsing the OSM-data, unreachable areas of the network are removed by using the network cleaner
+ * This is the first approach to create a network from osm data. It was later enhanced with a railway network.
+ * The germany-wide-freight v1 and v2 versions ignored this class and used ReadFreightNetwork instead.
+ * There is no apparent reason why different networks should be used for any future Germany model and the long distance freight only model.
+ * TODO: Merge both classes
  */
 public class RunCreateNetworkFromOSM {
 
