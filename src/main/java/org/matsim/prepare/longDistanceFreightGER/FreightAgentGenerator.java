@@ -1,5 +1,6 @@
 package org.matsim.prepare.longDistanceFreightGER;
 
+import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Link;
@@ -18,14 +19,16 @@ class FreightAgentGenerator {
     private final NumOfTripsCalculator numOfTruckTripsCalculator;
     private final PopulationFactory populationFactory;
     private final Network network;
+	private final Set<String> modes;
 
-    public FreightAgentGenerator(Network network, String shpPath, LanduseOptions landUse, double averageTruckLoad, int workingDays, double sample) throws IOException {
+    public FreightAgentGenerator(Network network, String shpPath, LanduseOptions landUse, Set<String> modes, double averageTruckLoad, int workingDays, double sample) throws IOException {
         this.roadLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse, TransportMode.car, DefaultLocationCalculator.SelectLocationInZone.BY_LAND_USE);
 		this.railwayLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse, "rail", DefaultLocationCalculator.SelectLocationInZone.ZONE_CENTROID);
 		this.departureTimeCalculator = new DefaultDepartureTimeCalculator();
         this.numOfTruckTripsCalculator = new DefaultNumberOfTripsCalculator(averageTruckLoad, workingDays, sample);
 		this.populationFactory = PopulationUtils.getFactory();
         this.network = network;
+		this.modes = modes;
     }
 
     public List<Person> generateFreightAgents(TripRelation tripRelation, String tripRelationId) {
@@ -34,11 +37,14 @@ class FreightAgentGenerator {
         String mainRunMode = tripRelation.getModeMainRun();
         String postRunMode = tripRelation.getModePostRun();
 
+		// Currently we create separate persons for pre, main and post legs. Merging that into one person is not trivial, because multiple
+		// trucks on the pre leg might fill a single train on the main leg.
+
         int numOfTruckTrips = numOfTruckTripsCalculator.calculateNumberOfTrips(tripRelation.getTonsPerYear(), tripRelation.getGoodsType());
 		// trains/day is probably 0 for most relations and train loads vary a lot. For the time being have 1 train/year instead
 		int numOfTrainTrips = 1;
 
-		if (preRunMode.equals(TripRelation.ModesInputData.road)) {
+		if (preRunMode.equals(TripRelation.ModesInputData.road) && modes.contains(preRunMode)) {
 			for (int i = 0; i < numOfTruckTrips; i++) {
 				String preMainPost = "pre";
 				String startCell = tripRelation.getOriginCell();
@@ -51,7 +57,7 @@ class FreightAgentGenerator {
 		}
 
 		// main-run is railway
-		if (mainRunMode.equals(TripRelation.ModesInputData.rail)) {
+		if (mainRunMode.equals(TripRelation.ModesInputData.rail) && modes.contains(mainRunMode)) {
 			for (int i = 0; i < numOfTrainTrips; i++) {
 				String preMainPost = "main";
 				String startCell = tripRelation.getOriginCellMainRun();
@@ -64,7 +70,7 @@ class FreightAgentGenerator {
 		}
 
 
-		if (mainRunMode.equals(TripRelation.ModesInputData.road)) {
+		if (mainRunMode.equals(TripRelation.ModesInputData.road) && modes.contains(mainRunMode)) {
 			for (int i = 0; i < numOfTruckTrips; i++) {
 				String preMainPost = "main";
 				String startCell = tripRelation.getOriginCellMainRun();
@@ -77,7 +83,7 @@ class FreightAgentGenerator {
 		}
 
 		// post-run
-		if (postRunMode.equals(TripRelation.ModesInputData.road)) {
+		if (postRunMode.equals(TripRelation.ModesInputData.road) && modes.contains(postRunMode)) {
 			for (int i = 0; i < numOfTruckTrips; i++) {
 				String preMainPost = "post";
 				String startCell = tripRelation.getOriginCellMainRun();
@@ -93,7 +99,7 @@ class FreightAgentGenerator {
     }
 
 	private void createTrip(TripRelation tripRelation, String tripRelationId, String mode, int i, String preMainPost, LocationCalculator locationCalculator, String startCell, String endCell, List<Person> freightAgents) {
-		Person person = populationFactory.createPerson(Id.createPersonId(mode + "_" + tripRelationId + "_" + i + "_" + preMainPost));
+		Person person = populationFactory.createPerson(Id.createPersonId("longDistanceFreight" + "_" + tripRelationId + "_" + i + "_" + preMainPost));
 		Plan plan = populationFactory.createPlan();
 		double departureTime = departureTimeCalculator.getDepartureTime();
 
@@ -136,6 +142,7 @@ class FreightAgentGenerator {
 
     public interface LocationCalculator {
         Id<Link> getLocationOnNetwork(String verkehrszelle);
+		Coord getCoord(String verkehrszelle);
     }
 
     public interface DepartureTimeCalculator {

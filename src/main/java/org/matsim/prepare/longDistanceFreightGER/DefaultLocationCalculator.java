@@ -6,8 +6,6 @@ import org.apache.commons.csv.CSVRecord;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.geotools.api.feature.simple.SimpleFeature;
-import org.geotools.referencing.CRS;
-import org.geotools.referencing.util.CRSUtilities;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Point;
 import org.matsim.api.core.v01.Coord;
@@ -15,19 +13,14 @@ import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Identifiable;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
-import org.matsim.application.options.CrsOptions;
 import org.matsim.application.options.LanduseOptions;
 import org.matsim.application.options.ShpOptions;
-import org.matsim.core.config.groups.NetworkConfigGroup;
 import org.matsim.core.gbl.Gbl;
 import org.matsim.core.network.NetworkUtils;
-import org.matsim.core.network.filter.NetworkFilterManager;
 import org.matsim.core.scenario.ProjectionUtils;
-import org.matsim.core.utils.geometry.CoordUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.geotools.MGC;
 import org.matsim.core.utils.geometry.transformations.GeotoolsTransformation;
-import org.matsim.core.utils.geometry.transformations.IdentityTransformation;
 import org.matsim.core.utils.io.IOUtils;
 import org.matsim.core.utils.misc.Counter;
 
@@ -39,6 +32,7 @@ import java.util.stream.Collectors;
 
 /**
  * Determine the start and end locations of the freight trips based on the NUTS3 shape file and the land use data (e.g., industry, retail, commercial)
+ * KN says demand generation should not rely on a specific network, so only put coord and do not put a link id.
  */
 class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalculator {
 	private final static Logger logger = LogManager.getLogger(DefaultLocationCalculator.class);
@@ -49,7 +43,8 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 	private final String networkMode;
 	private final SelectLocationInZone selectLocationInZone;
 	private final Network network;
-	private final Map<String, List<Id<Link>>> mapping = new HashMap<>();
+	private final Map<String, List<Id<Link>>> zone2LinksMapping = new HashMap<>();
+	private final Map<String, Coord> zone2CentroidMapping = new HashMap<>();
 	private final ShpOptions shp;
 	private static final String lookUpTablePath = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/" +
 		"scenarios/countries/de/german-wide-freight/v2/processed-data/complete-lookup-table.csv";
@@ -94,21 +89,26 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 		// shapefile, and then do the query.  What comes back is an attribute value, which has nothing to do with a coordinate system.
 
 		Map<String, List<Link>> nutsToLinksMapping = new HashMap<>();
+		Map<String, Coord> nutsToCentroidMapping = new HashMap<>();
+
 		if (selectLocationInZone == SelectLocationInZone.ZONE_CENTROID) {
-			String networkCrs = (String) network.getAttributes().getAttribute("coordinateReferenceSystem");
-			CoordinateTransformation coordTransformShp2Network = shp.createInverseTransformation(networkCrs);
-			NetworkFilterManager networkFilterManager = new NetworkFilterManager(network, new NetworkConfigGroup());
-			networkFilterManager.addLinkFilter(l -> l.getAllowedModes().contains(networkMode));
-			Network filteredNetwork = networkFilterManager.applyFilters();
+			CoordinateTransformation coordTransformShp2Network = shp.createInverseTransformation(ProjectionUtils.getCRS(network));
+
 			for (SimpleFeature feature : shpIndex.getAllFeatures()) {
 				Point centroid = ((Geometry) feature.getDefaultGeometry()).getCentroid();
 				Coord centroidMatsim = coordTransformShp2Network.transform(MGC.point2Coord(centroid));
-				Link centerLink = NetworkUtils.getNearestLink(filteredNetwork, centroidMatsim);
-				List<Link> linkList = new ArrayList<>();
-				linkList.add(centerLink);
-				nutsToLinksMapping.put((String) feature.getAttribute("NUTS_ID"), linkList);
+				nutsToCentroidMapping.put((String) feature.getAttribute("NUTS_ID"), centroidMatsim);
 			}
 		} else if (selectLocationInZone == SelectLocationInZone.BY_LAND_USE) {
+			/*
+			 * The following code was used for the germany-wide-freight truck demand v1 and v2. It iterates over all links of the network mode and
+			 * maps them to the nuts zone ids and filters by land use at the link toNode.
+			 * This approach has multiple issues. It depends on a network file and it sets link ids instead of coords or facilities.
+			 * The land use approach is interesting, but many land use zones exclude the neighbouring roads, so those roads are excluded.
+			 * Furthermore, some of the "industrial" areas in the land use file are solar farms, wasterwater plants and similar which do not attract
+			 * long distance freight traffic. vsp-gleich feb'26
+			 */
+
 			ShpOptions.Index landIndex = null;
 			if (landUse != null) {
 				logger.info("Reading land use data...");
@@ -159,7 +159,7 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 
 				// (a) Under "normal" circumstances, we just memorize the mapping:
 				if (!nuts2021.isEmpty() && nutsToLinksMapping.get(nuts2021) != null) {
-					mapping.put(verkehrszelle, nutsToLinksMapping.get(nuts2021).stream().map(Identifiable::getId).collect(Collectors.toList()));
+					zone2LinksMapping.put(verkehrszelle, nutsToLinksMapping.get(nuts2021).stream().map(Identifiable::getId).collect(Collectors.toList()));
 					continue;
 				}
 
@@ -197,7 +197,7 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 
 				assert backupLink != null : "link closest to " + transformedCoord + "is null";
 				Gbl.assertNotNull( backupLink ); // the "assert" keyword, used in the line before, has a tendency to not work.  kai, aug'25
-				mapping.put(verkehrszelle, List.of(backupLink.getId()));
+				zone2LinksMapping.put(verkehrszelle, List.of(backupLink.getId()));
 			}
 		}
 		logger.info("Location generator is successfully created!");
@@ -205,7 +205,11 @@ class DefaultLocationCalculator implements FreightAgentGenerator.LocationCalcula
 
 	@Override
 	public Id<Link> getLocationOnNetwork(String verkehrszelle) {
-		int size = mapping.get(verkehrszelle).size();
-		return mapping.get(verkehrszelle).get(rnd.nextInt(size));
+		int size = zone2LinksMapping.get(verkehrszelle).size();
+		return zone2LinksMapping.get(verkehrszelle).get(rnd.nextInt(size));
+	}
+
+	public Coord getCoord(String verkehrszelle) {
+		return zone2CentroidMapping.get(verkehrszelle);
 	}
 }

@@ -193,7 +193,7 @@ class TripRelation {
 		return tripRelations;
 	}
 
-	class ModesInputData{
+	static class ModesInputData{
 		static final String unoccupied = "unoccupied";
 		static final String rail = "rail";
 		static final String road = "road";

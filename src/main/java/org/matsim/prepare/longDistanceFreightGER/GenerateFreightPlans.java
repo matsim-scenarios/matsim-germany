@@ -69,6 +69,10 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 		arity = "0..*", split = ",", defaultValue = "industrial,commercial,retail")
 	private Set<String> landUseTypes;
 
+	@CommandLine.Option(names = "--modes", description = "Specify modes to be considered. Empty means all modes.",
+		arity = "0..*", split = ",", defaultValue = TripRelation.ModesInputData.rail)
+	private Set<String> modes;
+
     @Override
     public Integer call() throws Exception {
 		if (!Files.exists(output)) {
@@ -92,7 +96,7 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 		if (!landUseTypes.isEmpty()){
 			landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", landUseTypes);
 		}
-        FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuse, averageTruckLoad, workingDays, pct / 100);
+        FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuse, modes, averageTruckLoad, workingDays, pct / 100);
         log.info("Freight agent generator successfully created!");
 
         log.info("Reading trip relations...");
