@@ -3,11 +3,11 @@ package org.matsim.prepare.longDistanceFreightGER;
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.TransportMode;
-import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.*;
 import org.matsim.application.options.LanduseOptions;
 import org.matsim.core.population.PopulationUtils;
+import org.matsim.core.scenario.ProjectionUtils;
 
 import java.io.IOException;
 import java.util.*;
@@ -22,8 +22,8 @@ class FreightAgentGenerator {
 	private final Set<String> modes;
 
     public FreightAgentGenerator(Network network, String shpPath, LanduseOptions landUse, Set<String> modes, double averageTruckLoad, int workingDays, double sample) throws IOException {
-        this.roadLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse, TransportMode.car, DefaultLocationCalculator.SelectLocationInZone.BY_LAND_USE);
-		this.railwayLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse, "rail", DefaultLocationCalculator.SelectLocationInZone.ZONE_CENTROID);
+        this.roadLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse, TransportMode.car);
+		this.railwayLocationCalculator = new ZoneCentroidLocationCalculator(shpPath, ProjectionUtils.getCRS(network));
 		this.departureTimeCalculator = new DefaultDepartureTimeCalculator();
         this.numOfTruckTripsCalculator = new DefaultNumberOfTripsCalculator(averageTruckLoad, workingDays, sample);
 		this.populationFactory = PopulationUtils.getFactory();
@@ -103,9 +103,8 @@ class FreightAgentGenerator {
 		Plan plan = populationFactory.createPlan();
 		double departureTime = departureTimeCalculator.getDepartureTime();
 
-		Id<Link> startLinkId = locationCalculator.getLocationOnNetwork(startCell);
-		Activity startAct = populationFactory.createActivityFromLinkId("freight_start", startLinkId);
-		startAct.setCoord(network.getLinks().get(startLinkId).getToNode().getCoord());
+		Coord startCoord = locationCalculator.getCoord(startCell);
+		Activity startAct = populationFactory.createActivityFromCoord("freight_start", startCoord);
 		startAct.setEndTime(departureTime);
 		plan.addActivity(startAct);
 
@@ -113,9 +112,8 @@ class FreightAgentGenerator {
 		leg.getAttributes().putAttribute("tonsPerYear", tripRelation.getTonsPerYear());
 		plan.addLeg(leg);
 
-		Id<Link> endLinkId = locationCalculator.getLocationOnNetwork(endCell);
-		Activity endAct = populationFactory.createActivityFromLinkId("freight_end", endLinkId);
-		endAct.setCoord(network.getLinks().get(endLinkId).getToNode().getCoord());
+		Coord endCoord = locationCalculator.getCoord(endCell);
+		Activity endAct = populationFactory.createActivityFromCoord("freight_end", endCoord);
 		plan.addActivity(endAct);
 
 		person.addPlan(plan);
@@ -141,7 +139,6 @@ class FreightAgentGenerator {
     }
 
     public interface LocationCalculator {
-        Id<Link> getLocationOnNetwork(String verkehrszelle);
 		Coord getCoord(String verkehrszelle);
     }
 
