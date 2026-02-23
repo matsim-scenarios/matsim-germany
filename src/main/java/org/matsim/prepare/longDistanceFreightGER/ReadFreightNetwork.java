@@ -18,8 +18,10 @@ import java.util.Set;
 
 /**
  * This class likely created the road network for the germany-wide-freight model v1 and v2, ignoring the existing class RunCreateNetworkFromOSM.
- * Likely osm data was filtered with osmosis for a coarse European network and a more detailed German network were done to create an input pbf file,
- * similar to the procedure for matsim-berlin v6.4. However, there is no documentation. vsp-gleich feb'26
+ * Likely osm data was filtered with osmosis for a coarse European network and a more detailed German network to create an input pbf file,
+ * similar to the procedure in the makefile of matsim-berlin v6.4. However, there is no documentation.
+ * TODO: Merge with RunCreateNetworkFromOSM
+ * vsp-gleich feb'26
  */
 class ReadFreightNetwork implements MATSimAppCommand {
     private static final Logger log = LogManager.getLogger(ReadFreightNetwork.class);
