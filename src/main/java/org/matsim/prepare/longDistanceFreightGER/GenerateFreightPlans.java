@@ -37,8 +37,7 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 
     private static final Logger log = LogManager.getLogger(GenerateFreightPlans.class);
 
-    @CommandLine.Option(names = "--data", description = "Path to raw data (ketten 2010)",
-            defaultValue = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/ketten-2010.csv")
+    @CommandLine.Option(names = "--data", description = "Path to raw data (ketten 2010)", required = true)
     private String dataPath;
 
     @CommandLine.Option(names = "--network", description = "Path to desired network file",
@@ -59,7 +58,7 @@ public class GenerateFreightPlans implements MATSimAppCommand {
     private int workingDays;
 
     @CommandLine.Option(names = "--sample", defaultValue = "100", description = "Sample size of the freight plans (0, 100]")
-    private double pct;
+    private int pct;
 
 	@CommandLine.Option(names = "--land-use-filter", description = "specify land use type to filter out starting locations. Empty means no filter",
 		arity = "0..*", split = ",", defaultValue = "industrial,commercial,retail")
@@ -88,7 +87,7 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 		if (!landUseTypes.isEmpty()){
 			landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", landUseTypes);
 		}
-        FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuse, averageTruckLoad, workingDays, pct / 100);
+        FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuse, averageTruckLoad, workingDays, (double) pct / 100);
         log.info("Freight agent generator successfully created!");
 
         log.info("Reading trip relations...");
