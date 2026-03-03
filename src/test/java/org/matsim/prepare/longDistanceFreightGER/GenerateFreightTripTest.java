@@ -15,11 +15,12 @@ public class GenerateFreightTripTest {
 
 	@Test
 	public final void test() {
-		assert Files.exists(Path.of(utils.getClassInputDirectory() + "german_freight.0.001pct.plans.xml.gz"));
+		assert Files.exists(Path.of(utils.getClassInputDirectory() + "german_freight.100pct.plans.xml.gz"));
 
 		String [] args = {
+			"--data", utils.getClassInputDirectory() + "ketten_random_example.csv",
 			"--output", utils.getOutputDirectory(),
-			"--sample", "0.001",
+			"--sample", "100",
 			"--land-use-filter"
 		};
 
@@ -27,6 +28,6 @@ public class GenerateFreightTripTest {
 		//		GenerateFreightPlans.main( null );
 		// do this with null argument for the time being to really make sure that it uses the same setup as that main method (since that runs and this one here fails). kai, aug'25
 
-		PopulationUtils.comparePopulations(utils.getClassInputDirectory() + "german_freight.0.001pct.plans.xml.gz", utils.getOutputDirectory() + "german_freight.0.001pct.plans.xml.gz");
+		PopulationUtils.comparePopulations(utils.getClassInputDirectory() + "german_freight.100pct.plans.xml.gz", utils.getOutputDirectory() + "german_freight.100pct.plans.xml.gz");
 	}
 }
