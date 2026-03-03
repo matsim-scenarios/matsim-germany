@@ -37,8 +37,7 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 
     private static final Logger log = LogManager.getLogger(GenerateFreightPlans.class);
 
-    @CommandLine.Option(names = "--data", description = "Path to raw data (ketten 2010)",
-            defaultValue = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/ketten-2010.csv")
+    @CommandLine.Option(names = "--data", description = "Path to raw data (ketten 2010)", required = true)
     private String dataPath;
 
     @CommandLine.Option(names = "--network", description = "Path to desired network file",
