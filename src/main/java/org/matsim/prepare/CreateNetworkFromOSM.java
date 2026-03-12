@@ -1,4 +1,4 @@
-package org.matsim.car;
+package org.matsim.prepare;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -9,9 +9,13 @@ import org.geotools.api.referencing.operation.TransformException;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.referencing.CRS;
 import org.locationtech.jts.geom.Geometry;
+import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Network;
+import org.matsim.application.MATSimAppCommand;
+import org.matsim.application.options.CrsOptions;
 import org.matsim.contrib.osm.networkReader.OsmRailwayReader;
 import org.matsim.contrib.osm.networkReader.OsmTags;
+import org.matsim.contrib.osm.networkReader.SupersonicOsmNetworkReader;
 import org.matsim.core.config.groups.NetworkConfigGroup;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.network.filter.NetworkFilterManager;
@@ -19,67 +23,76 @@ import org.matsim.core.network.io.NetworkWriter;
 import org.matsim.core.scenario.ProjectionUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.geotools.MGC;
-import org.matsim.core.utils.geometry.transformations.TransformationFactory;
 import org.matsim.core.utils.gis.GeoFileReader;
-import org.matsim.core.utils.io.OsmNetworkReader;
+import picocli.CommandLine;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
 
 /**
- * This is the first approach to create a network from osm data. It was later enhanced with a railway network.
- * The germany-wide-freight v1 and v2 versions ignored this class and used ReadFreightNetwork instead.
- * There is no apparent reason why different networks should be used for any future Germany model and the long distance freight only model.
- * TODO: Merge both classes
+ * This class creates a coarse europe-wide road and railway network with more detail in Germany.
+ * The germany-wide-freight v1 and v2 versions are not well documented and apparently used a similar approach to that implemented here.
  */
-public class RunCreateNetworkFromOSM {
+public class CreateNetworkFromOSM implements MATSimAppCommand {
 
-	private static final String UTM32nAsEpsg = "EPSG:25832";
-	private static final Path input = Paths.get("../public-svn/matsim/scenarios/countries/de/germany/original_data/osm/germanyFilter.osm");
-	private static final String inputRailwayNetwork = "/Users/gleich/Projekte/ZeroCutsBahn/Netzwerkmodell/europe-2026-01-19-after-fixes-in-osm.osm.pbf";// TODO: reduce size and upload osm pbf
-	private static final Path germanyShp = Paths.get("../shared-svn/projects/matsim-germany/shp/germany-area.shp");
-	private static final Logger log = LogManager.getLogger(RunCreateNetworkFromOSM.class);
+	private static final Logger log = LogManager.getLogger(CreateNetworkFromOSM.class);
 
 	// https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/ has a network
 	// which differs from the network created here. We don't know
 
+	@CommandLine.Option(names = "--input-pbf-roads", description = "input pbf file for road network", required = true,
+		defaultValue = "../shared-svn/projects/matsim-germany/maps/processed/europe-2026-03-04-roads-coarse_only-germany-detailed.osm.pbf")
+	private Path inputPbfRoads;
+
+	@CommandLine.Option(names = "--input-pbf-railways", description = "input pbf file for railway network", required = true,
+		defaultValue = "../shared-svn/projects/matsim-germany/maps/processed/europe-2026-03-04-railways.osm.pbf")
+	private Path inputPbfRailways;
+
+	@CommandLine.Option(names = "--output", description = "output network file", required = true,
+		defaultValue = "../shared-svn/projects/matsim-germany/maps/processed/europe-2026-03-04-railways.osm.pbf")
+	private Path output;
+
+	@CommandLine.Option(names = "--output-path-intermediate-results", description = "output directory where intermediate results, e.g. unfiltered rail network, are written.")
+	private Path outputIntermediates;
+
+	@CommandLine.Option(names = "--germanyShp", description = "germany boundaries shp for filtering.",
+		defaultValue = "../shared-svn/projects/matsim-germany/shp/germany-area.shp")
+	private Path germanyShp;
+
+	@CommandLine.Mixin
+	private CrsOptions crs = new CrsOptions();
+	// Input CRS: WGS84 (EPSG:4326). Recommended target CRS: EPSG:25832 or EPSG:5677
+
 	public static void main(String[] args) {
-		new RunCreateNetworkFromOSM().create();
+		new CreateNetworkFromOSM().execute(args);
 	}
 
-	private void create() {
+	@Override
+	public Integer call() throws Exception {
+		Set<String> modes = new HashSet<>(List.of(TransportMode.car));
+		Network network = new SupersonicOsmNetworkReader.Builder()
+			.setCoordinateTransformation(crs.getTransformation())
+			.setPreserveNodeWithId(id -> id == 2)
+			.setAfterLinkCreated((link, osmTags, isReverse) -> link.setAllowedModes(modes))
+			.build()
+			.read(inputPbfRoads.toString());
 
-		// create an empty network which will contain the parsed network data
-		Network network = NetworkUtils.createNetwork();
-
-		CoordinateTransformation transformationOsmToMatsim = TransformationFactory.getCoordinateTransformation(
-			TransformationFactory.WGS84, UTM32nAsEpsg
-		);
-
-		/*
-		 * FIXME: The deprecated OsmNetworkReader adjusted link attributes (probably capacity, freespeed) to some vsp standards. The newer
-		 * SupersonicOsmNetworkReader has options to modify these attributes, but apparently no direct substitution to set to the same standards.
-		 * Newer scenarios create a sumo network and then translate that into matsim and modify attributes. Not sure what to do here, gleich may'25
-		 */
-		// create an osm network reader with a filter
-		OsmNetworkReader reader = new OsmNetworkReader(network, transformationOsmToMatsim, true, true);
-
-		// the actual work is done in this call. Depending on the data size this may take a long time
-		reader.parse(input.toString());
-
-		// clean the network to remove unconnected parts where agents might get stuck
-		NetworkUtils.cleanNetwork(network, new HashSet<>(Collections.singletonList("car")));
+		NetworkUtils.cleanNetwork(network, modes);
+		if (outputIntermediates != null) {
+			new NetworkWriter(network).write(outputIntermediates.resolve("network-roads.xml.gz").toString());
+		}
 		log.info("Car network done.");
+
+		CoordinateTransformation transformationOsmToMatsim = crs.getTransformation();
 
 		GeoFileReader germanyShapeReader = new GeoFileReader();
 		Collection<SimpleFeature> germanyFeatures = germanyShapeReader.readFileAndInitialize(germanyShp.toString());
 		List<Geometry> germanyGeometries;
 		try {
 			MathTransform transform = CRS.findMathTransform(// germanyShapeReader.getCoordinateSystem()
-				CRS.decode("EPSG:4326", true) , CRS.decode(UTM32nAsEpsg));
+				germanyShapeReader.getCoordinateSystem(), CRS.decode(crs.getTargetCRS())); //CRS.decode("EPSG:4326", true) , CRS.decode(UTM32nAsEpsg));
 			germanyGeometries = germanyFeatures.stream().map(simpleFeature -> {
 				try {
 					 return JTS.transform( (Geometry) simpleFeature.getDefaultGeometry(), transform);
@@ -94,10 +107,11 @@ public class RunCreateNetworkFromOSM {
 		OsmRailwayReader railwayReader = new OsmRailwayReader.Builder()
 			.setCoordinateTransformation(transformationOsmToMatsim)
 			.build();
-		Network railwayNetwork = railwayReader.read(inputRailwayNetwork);
-		ProjectionUtils.putCRS(railwayNetwork, UTM32nAsEpsg);
-		new NetworkWriter(railwayNetwork).write("./output/network-railway-unfiltered.xml.gz");
-
+		Network railwayNetwork = railwayReader.read(inputPbfRailways);
+		ProjectionUtils.putCRS(railwayNetwork, crs.getTargetCRS());
+		if (outputIntermediates != null) {
+			new NetworkWriter(network).write(outputIntermediates.resolve("network-railways-unfiltered.xml.gz").toString());
+		}
 
 		// Filter to mainline rail (removes tram, metros, narrow gauge etc.)
 		NetworkFilterManager networkFilterManager = new NetworkFilterManager(railwayNetwork, new NetworkConfigGroup());
@@ -126,7 +140,9 @@ public class RunCreateNetworkFromOSM {
 		});
 		Network filteredRailwayNetwork = networkFilterManager.applyFilters();
 		NetworkUtils.cleanNetwork(filteredRailwayNetwork, new HashSet<>(Collections.singletonList(OsmTags.RAIL)));
-		new NetworkWriter(filteredRailwayNetwork).write("./output/network-railway-filtered.xml.gz");
+		if (outputIntermediates != null) {
+			new NetworkWriter(network).write(outputIntermediates.resolve("network-railways-filtered.xml.gz").toString());
+		}
 
 		// copy filteredRailwayNetwork into network
 		filteredRailwayNetwork.getNodes().values().forEach(n -> {
@@ -139,6 +155,8 @@ public class RunCreateNetworkFromOSM {
 		log.info("Railway network done.");
 
 		// write out the network into a file
-		new NetworkWriter(network).write("./output/network.xml.gz");
+		new NetworkWriter(network).write(output.toString());
+
+		return 0;
 	}
 }
