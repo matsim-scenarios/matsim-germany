@@ -1,3 +1,22 @@
+/* *********************************************************************** *
+ * project: org.matsim.*												   *
+ *                                                                         *
+ * *********************************************************************** *
+ *                                                                         *
+ * copyright       : (C) 2026 by the members listed in the COPYING,        *
+ *                   LICENSE and WARRANTY file.                            *
+ * email           : info at matsim dot org                                *
+ *                                                                         *
+ * *********************************************************************** *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *   See also COPYING, LICENSE and WARRANTY file                           *
+ *                                                                         *
+ * *********************************************************************** */
+
 package org.matsim.prepare;
 
 import org.apache.logging.log4j.LogManager;
@@ -21,7 +40,6 @@ import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.network.filter.NetworkFilterManager;
 import org.matsim.core.network.io.NetworkWriter;
 import org.matsim.core.scenario.ProjectionUtils;
-import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.geotools.MGC;
 import org.matsim.core.utils.gis.GeoFileReader;
 import picocli.CommandLine;
@@ -39,9 +57,6 @@ public class CreateNetworkFromOSM implements MATSimAppCommand {
 
 	private static final Logger log = LogManager.getLogger(CreateNetworkFromOSM.class);
 
-	// https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/v2/ has a network
-	// which differs from the network created here. We don't know
-
 	@CommandLine.Option(names = "--input-pbf-roads", description = "input pbf file for road network", required = true,
 		defaultValue = "../shared-svn/projects/matsim-germany/maps/processed/europe-2026-03-04-roads-coarse_only-germany-detailed.osm.pbf")
 	private Path inputPbfRoads;
@@ -51,10 +66,11 @@ public class CreateNetworkFromOSM implements MATSimAppCommand {
 	private Path inputPbfRailways;
 
 	@CommandLine.Option(names = "--output", description = "output network file", required = true,
-		defaultValue = "../shared-svn/projects/matsim-germany/maps/processed/europe-2026-03-04-railways.osm.pbf")
+		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-network.xml.gz")
 	private Path output;
 
-	@CommandLine.Option(names = "--output-path-intermediate-results", description = "output directory where intermediate results, e.g. unfiltered rail network, are written.")
+	@CommandLine.Option(names = "--output-path-intermediate-results", description = "output directory where intermediate results, e.g. unfiltered rail network, are written.",
+		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/")
 	private Path outputIntermediates;
 
 	@CommandLine.Option(names = "--germanyShp", description = "germany boundaries shp for filtering.",
@@ -63,7 +79,7 @@ public class CreateNetworkFromOSM implements MATSimAppCommand {
 
 	@CommandLine.Mixin
 	private CrsOptions crs = new CrsOptions();
-	// Input CRS: WGS84 (EPSG:4326). Recommended target CRS: EPSG:25832 or EPSG:5677
+	// --input-crs=EPSG:4326 --target-crs=EPSG:25832
 
 	public static void main(String[] args) {
 		new CreateNetworkFromOSM().execute(args);
@@ -71,6 +87,23 @@ public class CreateNetworkFromOSM implements MATSimAppCommand {
 
 	@Override
 	public Integer call() throws Exception {
+		GeoFileReader germanyShapeReader = new GeoFileReader();
+		Collection<SimpleFeature> germanyFeatures = germanyShapeReader.readFileAndInitialize(germanyShp.toString());
+		List<Geometry> germanyGeometries;
+		try {
+			MathTransform transform = CRS.findMathTransform(// germanyShapeReader.getCoordinateSystem()
+				germanyShapeReader.getCoordinateSystem(), CRS.decode(crs.getTargetCRS())); //CRS.decode("EPSG:4326", true) , CRS.decode(UTM32nAsEpsg));
+			germanyGeometries = germanyFeatures.stream().map(simpleFeature -> {
+				try {
+					return JTS.transform( (Geometry) simpleFeature.getDefaultGeometry(), transform);
+				} catch (TransformException e) {
+					throw new RuntimeException(e);
+				}
+			}).collect(Collectors.toList());
+		} catch (FactoryException e) {
+			throw new RuntimeException(e);
+		}
+
 		Set<String> modes = new HashSet<>(List.of(TransportMode.car));
 		Network network = new SupersonicOsmNetworkReader.Builder()
 			.setCoordinateTransformation(crs.getTransformation())
@@ -80,37 +113,19 @@ public class CreateNetworkFromOSM implements MATSimAppCommand {
 			.read(inputPbfRoads.toString());
 
 		NetworkUtils.cleanNetwork(network, modes);
+		ProjectionUtils.putCRS(network, crs.getTargetCRS());
 		if (outputIntermediates != null) {
 			new NetworkWriter(network).write(outputIntermediates.resolve("network-roads.xml.gz").toString());
 		}
 		log.info("Car network done.");
 
-		CoordinateTransformation transformationOsmToMatsim = crs.getTransformation();
-
-		GeoFileReader germanyShapeReader = new GeoFileReader();
-		Collection<SimpleFeature> germanyFeatures = germanyShapeReader.readFileAndInitialize(germanyShp.toString());
-		List<Geometry> germanyGeometries;
-		try {
-			MathTransform transform = CRS.findMathTransform(// germanyShapeReader.getCoordinateSystem()
-				germanyShapeReader.getCoordinateSystem(), CRS.decode(crs.getTargetCRS())); //CRS.decode("EPSG:4326", true) , CRS.decode(UTM32nAsEpsg));
-			germanyGeometries = germanyFeatures.stream().map(simpleFeature -> {
-				try {
-					 return JTS.transform( (Geometry) simpleFeature.getDefaultGeometry(), transform);
-				} catch (TransformException e) {
-					throw new RuntimeException(e);
-				}
-			}).collect(Collectors.toList());
-		} catch (FactoryException e) {
-			throw new RuntimeException(e);
-		}
-
 		OsmRailwayReader railwayReader = new OsmRailwayReader.Builder()
-			.setCoordinateTransformation(transformationOsmToMatsim)
+			.setCoordinateTransformation(crs.getTransformation())
 			.build();
 		Network railwayNetwork = railwayReader.read(inputPbfRailways);
 		ProjectionUtils.putCRS(railwayNetwork, crs.getTargetCRS());
 		if (outputIntermediates != null) {
-			new NetworkWriter(network).write(outputIntermediates.resolve("network-railways-unfiltered.xml.gz").toString());
+			new NetworkWriter(railwayNetwork).write(outputIntermediates.resolve("network-railways-unfiltered.xml.gz").toString());
 		}
 
 		// Filter to mainline rail (removes tram, metros, narrow gauge etc.)
@@ -141,7 +156,7 @@ public class CreateNetworkFromOSM implements MATSimAppCommand {
 		Network filteredRailwayNetwork = networkFilterManager.applyFilters();
 		NetworkUtils.cleanNetwork(filteredRailwayNetwork, new HashSet<>(Collections.singletonList(OsmTags.RAIL)));
 		if (outputIntermediates != null) {
-			new NetworkWriter(network).write(outputIntermediates.resolve("network-railways-filtered.xml.gz").toString());
+			new NetworkWriter(filteredRailwayNetwork).write(outputIntermediates.resolve("network-railways-filtered.xml.gz").toString());
 		}
 
 		// copy filteredRailwayNetwork into network
