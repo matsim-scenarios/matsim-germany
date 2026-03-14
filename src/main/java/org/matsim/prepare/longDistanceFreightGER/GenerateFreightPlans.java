@@ -5,10 +5,12 @@ import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.matsim.api.core.v01.Coord;
+import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.*;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.LanduseOptions;
+import org.matsim.contrib.osm.networkReader.OsmTags;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.PopulationUtils;
@@ -53,7 +55,8 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 		defaultValue= "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/german-wide-freight/raw-data/shp/NUTS_RG_20M_2016_25832.shp/NUTS_RG_20M_2016_25832.shp")
     private String shpPath;
 
-    @CommandLine.Option(names = "--output", description = "Output folder path", required = true)
+    @CommandLine.Option(names = "--output", description = "Output folder path", required = true,
+		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration")
     private Path output;
 
     @CommandLine.Option(names = "--truck-load", defaultValue = "13.0", description = "Average load of truck")
@@ -72,6 +75,10 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 	@CommandLine.Option(names = "--modes", description = "Specify modes to be considered. Empty means all modes.",
 		arity = "0..*", split = ",", defaultValue = TripRelation.ModesInputData.rail)
 	private Set<String> modes;
+
+	public static final String LONG_DISTANCE_FREIGHT = "longDistanceFreight";
+	static final String LEG_MODE_FREIGHT_ROAD = TransportMode.car;
+	public static final String LEG_MODE_FREIGHT_RAIL = OsmTags.RAIL;
 
     @Override
     public Integer call() throws Exception {
@@ -118,7 +125,7 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 				log.info("Processing: {} out of {} entries have been processed", i, tripRelations.size());
             }
         }
-        String outputPlansPath = output.toString() + "/german_freight." + pct + "pct.plans.xml.gz";
+        String outputPlansPath = output.toString() + "/german-wide-freight-v3-" + pct + "pct.plans.xml.gz";
         PopulationWriter populationWriter = new PopulationWriter(outputPopulation);
         populationWriter.write(outputPlansPath);
 
@@ -147,8 +154,8 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 	public static void main(String[] args) {
 		if ( args==null || args.length==0 ) {
 			args = new String[] {
-					"--output", "output-longDistanceFreightGER"
-					,"--sample", "1.0"
+//					"--output", "output-longDistanceFreightGER",
+					"--sample", "1.0"
 					,"--land-use-filter" // only for testing!
 			};
 		}

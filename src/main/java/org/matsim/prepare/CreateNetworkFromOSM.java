@@ -29,6 +29,7 @@ import org.geotools.geometry.jts.JTS;
 import org.geotools.referencing.CRS;
 import org.locationtech.jts.geom.Geometry;
 import org.matsim.api.core.v01.TransportMode;
+import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.CrsOptions;
@@ -37,6 +38,7 @@ import org.matsim.contrib.osm.networkReader.OsmTags;
 import org.matsim.contrib.osm.networkReader.SupersonicOsmNetworkReader;
 import org.matsim.core.config.groups.NetworkConfigGroup;
 import org.matsim.core.network.NetworkUtils;
+import org.matsim.core.network.algorithms.MultimodalNetworkCleaner;
 import org.matsim.core.network.filter.NetworkFilterManager;
 import org.matsim.core.network.io.NetworkWriter;
 import org.matsim.core.scenario.ProjectionUtils;
@@ -81,6 +83,9 @@ public class CreateNetworkFromOSM implements MATSimAppCommand {
 	private CrsOptions crs = new CrsOptions();
 	// --input-crs=EPSG:4326 --target-crs=EPSG:25832
 
+	public static final String RAIL_ELECTRIFIED = OsmTags.RAIL + "_electrified";
+	public static final String RAIL_ELECTRIFIED_INCL_PROPOSED = OsmTags.RAIL + "_electrifiedInclProposed";
+
 	public static void main(String[] args) {
 		new CreateNetworkFromOSM().execute(args);
 	}
@@ -104,15 +109,15 @@ public class CreateNetworkFromOSM implements MATSimAppCommand {
 			throw new RuntimeException(e);
 		}
 
-		Set<String> modes = new HashSet<>(List.of(TransportMode.car));
+		Set<String> modesRoadNetwork = new HashSet<>(List.of(TransportMode.car,TransportMode.ride,TransportMode.truck));
 		Network network = new SupersonicOsmNetworkReader.Builder()
 			.setCoordinateTransformation(crs.getTransformation())
 			.setPreserveNodeWithId(id -> id == 2)
-			.setAfterLinkCreated((link, osmTags, isReverse) -> link.setAllowedModes(modes))
+			.setAfterLinkCreated((link, osmTags, isReverse) -> link.setAllowedModes(modesRoadNetwork))
 			.build()
 			.read(inputPbfRoads.toString());
 
-		NetworkUtils.cleanNetwork(network, modes);
+		NetworkUtils.cleanNetwork(network, modesRoadNetwork);
 		ProjectionUtils.putCRS(network, crs.getTargetCRS());
 		if (outputIntermediates != null) {
 			new NetworkWriter(network).write(outputIntermediates.resolve("network-roads.xml.gz").toString());
@@ -157,6 +162,39 @@ public class CreateNetworkFromOSM implements MATSimAppCommand {
 		NetworkUtils.cleanNetwork(filteredRailwayNetwork, new HashSet<>(Collections.singletonList(OsmTags.RAIL)));
 		if (outputIntermediates != null) {
 			new NetworkWriter(filteredRailwayNetwork).write(outputIntermediates.resolve("network-railways-filtered.xml.gz").toString());
+		}
+
+		// add transport modes railway_electrifiedInclProposed, railway_electrified
+		for (Link link: filteredRailwayNetwork.getLinks().values()) {
+			Object electrifiedObj = link.getAttributes().getAttribute(OsmTags.ELECTRIFIED);
+			String electrified = electrifiedObj == null ? "null" : electrifiedObj.toString();
+			if (electrified.matches("contact_line")) {
+				/* There are very few sections with contact_line and (third) rail near Hennigsdorf and Birkenwerder which we could ignore for ZeroCuts
+				 * Only heavy rail should use OsmTags.RAIL "rail" and heavy rail uses contact_line except for Southern England and S-Bahn in Berlin
+				 * and Hamburg. Those S-Bahn systems are tagged as "light_rail" in osm (despite technically being "heavy rail". Therefore, we consider
+				 * only "contact_line" here.
+				 */
+				Set<String> modes = new HashSet<>(link.getAllowedModes());
+				modes.add(RAIL_ELECTRIFIED);
+				modes.add(RAIL_ELECTRIFIED_INCL_PROPOSED);
+				link.setAllowedModes(modes);
+				continue;
+			}
+			Object proposedElectrifiedObj = link.getAttributes().getAttribute(OsmTags.PROPOSED + OsmTags.ELECTRIFIED);
+			String proposedElectrified = proposedElectrifiedObj == null ? "null" : proposedElectrifiedObj.toString();
+			if (proposedElectrified.equals("contact_line")) {
+				Set<String> modes = new HashSet<>(link.getAllowedModes());
+				modes.add(RAIL_ELECTRIFIED_INCL_PROPOSED);
+				link.setAllowedModes(modes);
+			}
+		}
+
+		// clean mode-specific networks to make them suitable for routing
+		MultimodalNetworkCleaner networkCleaner = new MultimodalNetworkCleaner(filteredRailwayNetwork);
+		networkCleaner.run(Set.of(RAIL_ELECTRIFIED));
+		networkCleaner.run(Set.of(RAIL_ELECTRIFIED_INCL_PROPOSED));
+		if (outputIntermediates != null) {
+			new NetworkWriter(filteredRailwayNetwork).write(outputIntermediates.resolve("network-railways-final.xml.gz").toString());
 		}
 
 		// copy filteredRailwayNetwork into network

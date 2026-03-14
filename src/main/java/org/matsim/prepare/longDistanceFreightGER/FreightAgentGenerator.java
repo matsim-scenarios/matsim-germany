@@ -12,6 +12,8 @@ import org.matsim.core.scenario.ProjectionUtils;
 import java.io.IOException;
 import java.util.*;
 
+import static org.matsim.prepare.longDistanceFreightGER.GenerateFreightPlans.*;
+
 class FreightAgentGenerator {
     private final LocationCalculator roadLocationCalculator;
 	private final LocationCalculator railwayLocationCalculator;
@@ -49,7 +51,7 @@ class FreightAgentGenerator {
 				String preMainPost = "pre";
 				String startCell = tripRelation.getOriginCell();
 				String endCell = tripRelation.getOriginCellMainRun();
-				String mode = "freight";
+				String mode = LEG_MODE_FREIGHT_ROAD;
 				LocationCalculator locationCalculator = roadLocationCalculator;
 
 				createTrip(tripRelation, tripRelationId, mode, i, preMainPost, locationCalculator, startCell, endCell, freightAgents);
@@ -62,7 +64,7 @@ class FreightAgentGenerator {
 				String preMainPost = "main";
 				String startCell = tripRelation.getOriginCellMainRun();
 				String endCell = tripRelation.getDestinationCellMainRun();
-				String mode = "freightRail";
+				String mode = LEG_MODE_FREIGHT_RAIL;
 				LocationCalculator locationCalculator = railwayLocationCalculator;
 
 				createTrip(tripRelation, tripRelationId, mode, i, preMainPost, locationCalculator, startCell, endCell, freightAgents);
@@ -75,7 +77,7 @@ class FreightAgentGenerator {
 				String preMainPost = "main";
 				String startCell = tripRelation.getOriginCellMainRun();
 				String endCell = tripRelation.getDestinationCellMainRun();
-				String mode = "freight";
+				String mode = LEG_MODE_FREIGHT_ROAD;
 				LocationCalculator locationCalculator = roadLocationCalculator;
 
 				createTrip(tripRelation, tripRelationId, mode, i, preMainPost, locationCalculator, startCell, endCell, freightAgents);
@@ -88,7 +90,7 @@ class FreightAgentGenerator {
 				String preMainPost = "post";
 				String startCell = tripRelation.getOriginCellMainRun();
 				String endCell = tripRelation.getDestinationCellMainRun();
-				String mode = "freight";
+				String mode = LEG_MODE_FREIGHT_ROAD;
 				LocationCalculator locationCalculator = roadLocationCalculator;
 
 				createTrip(tripRelation, tripRelationId, mode, i, preMainPost, locationCalculator, startCell, endCell, freightAgents);
@@ -99,7 +101,7 @@ class FreightAgentGenerator {
     }
 
 	private void createTrip(TripRelation tripRelation, String tripRelationId, String mode, int i, String preMainPost, LocationCalculator locationCalculator, String startCell, String endCell, List<Person> freightAgents) {
-		Person person = populationFactory.createPerson(Id.createPersonId("longDistanceFreight" + "_" + tripRelationId + "_" + i + "_" + preMainPost));
+		Person person = populationFactory.createPerson(Id.createPersonId(LONG_DISTANCE_FREIGHT + "_" + tripRelationId + "_" + i + "_" + preMainPost));
 		Plan plan = populationFactory.createPlan();
 		double departureTime = departureTimeCalculator.getDepartureTime();
 
@@ -125,7 +127,7 @@ class FreightAgentGenerator {
 
 	// TODO store this attribute names as public static strings
     private void writeCommonAttributes(Person person, TripRelation tripRelation, String tripRelationId){
-        person.getAttributes().putAttribute("subpopulation", "freight");
+        person.getAttributes().putAttribute("subpopulation", LONG_DISTANCE_FREIGHT);
         person.getAttributes().putAttribute("trip_relation_index", tripRelationId);
         person.getAttributes().putAttribute("pre-run_mode", tripRelation.getModePreRun());
         person.getAttributes().putAttribute("main-run_mode", tripRelation.getModeMainRun());
