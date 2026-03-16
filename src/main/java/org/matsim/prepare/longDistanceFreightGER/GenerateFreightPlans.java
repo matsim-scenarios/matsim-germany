@@ -77,7 +77,7 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 	private Set<String> modes;
 
 	public static final String LONG_DISTANCE_FREIGHT = "longDistanceFreight";
-	static final String LEG_MODE_FREIGHT_ROAD = TransportMode.car;
+	public static final String LEG_MODE_FREIGHT_ROAD = TransportMode.car;
 	public static final String LEG_MODE_FREIGHT_RAIL = OsmTags.RAIL;
 
     @Override

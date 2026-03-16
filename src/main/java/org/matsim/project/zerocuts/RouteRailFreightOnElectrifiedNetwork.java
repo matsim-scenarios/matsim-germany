@@ -19,10 +19,12 @@
 
 package org.matsim.project.zerocuts;
 
+import com.google.common.base.Verify;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Network;
@@ -48,15 +50,16 @@ import org.matsim.core.utils.io.IOUtils;
 import org.matsim.facilities.FacilitiesUtils;
 import org.matsim.facilities.Facility;
 import org.matsim.prepare.CreateNetworkFromOSM;
+import org.matsim.vehicles.Vehicle;
+import org.matsim.vehicles.VehicleType;
+import org.matsim.vehicles.VehicleUtils;
 import picocli.CommandLine;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
-import static org.matsim.prepare.longDistanceFreightGER.GenerateFreightPlans.LEG_MODE_FREIGHT_RAIL;
-import static org.matsim.prepare.longDistanceFreightGER.GenerateFreightPlans.LONG_DISTANCE_FREIGHT;
+import static org.matsim.prepare.longDistanceFreightGER.GenerateFreightPlans.*;
 
 public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 
@@ -79,8 +82,10 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 	private String columnSeparator = ",";
 	private static final Logger log = LogManager.getLogger(RouteRailFreightOnElectrifiedNetwork.class);
 
-	static final String[] HEADER = {"fromX", "fromY", "toX", "toY", "fromLink", "toLink", "tons_year", "length_access", "length_egress",
-		"length_non-electrified", "length_electrified", "length_electrified_incl_proposed"};
+	static final String[] HEADER = {"fromX", "fromY", "toX", "toY", "fromLink", "toLink",
+		"pre-run_mode", "main-run_mode", "post-run_mode", "initial_origin_cell", "origin_cell_main_run", "destination_cell_main_run",
+		"final_destination_cell", "goods_type", "tons_year", "length_access", "length_egress",
+		"length_non_electrified", "length_electrified", "length_electrified_incl_proposed"};
 
 	public static void main(String[] args) {
 		new RouteRailFreightOnElectrifiedNetwork().execute(args);
@@ -89,7 +94,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 	public Integer call() throws Exception {
 		Config config = ConfigUtils.createConfig();//ConfigUtils.loadConfig();
 		config.global().setCoordinateSystem("EPSG:25832");
-		config.qsim().setVehiclesSource(QSimConfigGroup.VehiclesSource.defaultVehicle);
+		config.qsim().setVehiclesSource(QSimConfigGroup.VehiclesSource.modeVehicleTypesFromVehiclesData);
 		// it manages to fail due to the output directory although no simulation is run and consequentially no output should be written
 		config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.overwriteExistingFiles);
 		config.network().setInputFile(inputNetwork.toString());
@@ -105,7 +110,33 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		config.scoring().addModeParams(scoreRailElectrified);
 		config.scoring().addModeParams(scoreRailElectrifiedInclProposed);
 
-		Scenario scenario = ScenarioUtils.loadScenario(config);
+		Scenario scenario = ScenarioUtils.createScenario(config);
+		Set<String> modesThatNeedVehicleTypes = new HashSet<>();
+		modesThatNeedVehicleTypes.add(LEG_MODE_FREIGHT_ROAD);
+		modesThatNeedVehicleTypes.add(LEG_MODE_FREIGHT_RAIL);
+		modesThatNeedVehicleTypes.addAll(railwayModes);
+		Map<String, Id<VehicleType>> modeToVehicleType = new HashMap<>();
+		for (String mode: modesThatNeedVehicleTypes) {
+			VehicleType vehicleType = scenario.getVehicles().addModeVehicleType(mode);
+			vehicleType.setMaximumVelocity(100/3.6);
+			modeToVehicleType.put(mode, vehicleType.getId());
+		}
+		ScenarioUtils.loadScenario(scenario);
+
+		// Since this is not running PersonPrepareForSim, we have to manually add all VehicleTypes to all Persons (it failed without), and even then
+		// it failed with "Could not retrieve vehicle id from person: longDistanceFreight_0_0_main", so explicitly add Vehicles...
+		for (Person person: scenario.getPopulation().getPersons().values()) {
+			VehicleUtils.insertVehicleTypesIntoPersonAttributes(person, modeToVehicleType);
+			Map<String, Id<Vehicle>> modeToVehicle = new HashMap<>();
+			for (Map.Entry<String, Id<VehicleType>> modeVehicleType: modeToVehicleType.entrySet()) {
+				Id<Vehicle> vehicleId = VehicleUtils.createVehicleId(person, modeVehicleType.getKey());
+				Vehicle vehicle = scenario.getVehicles().getFactory().createVehicle(vehicleId, scenario.getVehicles().getVehicleTypes().get(modeVehicleType.getValue()));
+				scenario.getVehicles().addVehicle(vehicle);
+				modeToVehicle.put(modeVehicleType.getKey(), vehicleId);
+			}
+			VehicleUtils.insertVehicleIdsIntoAttributes(person, modeToVehicle);
+		}
+
 		this.injector = new Injector.InjectorBuilder( scenario )
 			.addStandardModules()
 			.build();
@@ -136,18 +167,24 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		}
 
 		XY2Links xy2Links = new XY2Links(electrifiedRailwayNetwork, scenario.getActivityFacilities());
+		int counter = 0;
+		int nextMsg=1;
 		for (Person person: scenario.getPopulation().getPersons().values()) {
+			counter++;
+			if (counter % nextMsg == 0) {
+				nextMsg *= 4;
+				log.info(" person # " + counter);}
 			if (!person.getId().toString().contains(LONG_DISTANCE_FREIGHT)) {continue;}
 			xy2Links.run(person);
 			// The correct input file should have one plan per person with one trip and one leg each.
 			// If that changes this analysis class needs to be adapted.
-			Gbl.equal(person.getPlans().size(), 1.0, 0.1);
+			Verify.verify(person.getPlans().size() == 1, person.getId() + " has more than 1 plan.");
 			List<TripStructureUtils.Trip> trips = TripStructureUtils.getTrips(person.getSelectedPlan());
-			Gbl.equal(trips.size(), 1.0, 0.1);
+			Verify.verify(trips.size() == 1, person.getId() + " has more than 1 trip.");
 			TripStructureUtils.Trip trip = trips.get(0);
-			Gbl.equal(trip.getLegsOnly().size(), 1, 0.1);
+			Verify.verify(trip.getLegsOnly().size() == 1, person.getId() + " has more than 1 leg before routing.");
 			Leg singleLeg = trip.getLegsOnly().get(0);
-			if (!trip.getLegsOnly().get(0).getMode().equals(LEG_MODE_FREIGHT_RAIL)) {continue;}
+			if (!singleLeg.getMode().equals(LEG_MODE_FREIGHT_RAIL)) {continue;}
 
 			Facility originFacility = FacilitiesUtils.wrapActivity(trip.getOriginActivity());
 			Facility destinationFacility = FacilitiesUtils.wrapActivity(trip.getDestinationActivity());
@@ -170,6 +207,14 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 				printer.print(destinationFacility.getCoord().getY());
 				printer.print(originFacility.getLinkId());
 				printer.print(destinationFacility.getLinkId());
+				printer.print(person.getAttributes().getAttribute("pre-run_mode"));
+				printer.print(person.getAttributes().getAttribute("main-run_mode"));
+				printer.print(person.getAttributes().getAttribute("post-run_mode"));
+				printer.print(person.getAttributes().getAttribute("initial_origin_cell"));
+				printer.print(person.getAttributes().getAttribute("origin_cell_main_run"));
+				printer.print(person.getAttributes().getAttribute("destination_cell_main_run"));
+				printer.print(person.getAttributes().getAttribute("final_destination_cell"));
+				printer.print(person.getAttributes().getAttribute("goods_type"));
 				printer.print(person.getAttributes().getAttribute("tons_per_year"));
 				printer.print(accessLeg.getRoute().getDistance());
 				printer.print(egressLeg.getRoute().getDistance());
@@ -180,9 +225,10 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 			} catch (IOException e) {
 				log.error(e);
 			}
-			printer.flush();
-			printer.close();
 		}
+
+		printer.flush();
+		printer.close();
 
 		// route : all, only electrified, proposed-electrified
 		// output: from, to, tons/year, length non-electrified, electrified, proposed-electrified
