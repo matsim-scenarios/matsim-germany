@@ -27,6 +27,7 @@ import picocli.CommandLine;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -112,6 +113,10 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 			throw new RuntimeException(e);
 		}
 
+		// Filter to selected day
+		DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+		flightInformationList = flightInformationList.stream().filter(f -> f.filedOffBlockTime.toLocalDate().equals(LocalDate.parse(sampleDay, formatter2))).toList();
+
 		// Prepare Scenario
 		Scenario planeScenario = ScenarioUtils.createScenario(ConfigUtils.createConfig());
 		TransitScheduleFactoryImpl scheduleFactory = new TransitScheduleFactoryImpl();
@@ -127,20 +132,45 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		}
 
 		// Create schedule with given flightInformation
-		// TODO
 		for(var flightInformation : flightInformationList){
+			// Prepare Ids
 			String id = flightInformation.ADEP + "_" + flightInformation.ADES + "_" + flightInformation.id;
 			Id<Link> linkId = Id.createLinkId(id);
 			Id<TransitLine> lineId = Id.create(id, TransitLine.class);
 			Id<TransitRoute> routeId = Id.create(id, TransitRoute.class);
+			Id<Departure> departureId = Id.create(id, Departure.class);
 
-			// Add the link for this flight
+			// Skip if flightInformation can't be added
 			double time = ChronoUnit.SECONDS.between(flightInformation.filedOffBlockTime, flightInformation.filedArrivalTime);
 
+			if(time < 1.){
+				log.warn("Skipped flight (id={}) due to too short flight time (time={})", flightInformation.id, time);
+				continue;
+			}
+
+			if(flightInformation.distance < 1.){
+				log.warn("Skipped flight (id={}) due to too short flight distance (distance={})", flightInformation.id, flightInformation.distance);
+				continue;
+			}
+
+			Node from = planeScenario.getNetwork().getNodes().get(Id.createNodeId(flightInformation.ADEP + "runwayOutbound"));
+			Node to = planeScenario.getNetwork().getNodes().get(Id.createNodeId(flightInformation.ADES + "runwayInbound"));
+
+			if(from == null){
+				log.warn("Skipped flight (id={}) due to missing departure airport ({})", flightInformation.id, flightInformation.ADEP);
+				continue;
+			}
+
+			if(to == null){
+				log.warn("Skipped flight (id={}) due to missing arrival airport ({})", flightInformation.id, flightInformation.ADES);
+				continue;
+			}
+
+			// Add the link for this flight
 			planeScenario.getNetwork().addLink(NetworkUtils.createLink(
 				linkId,
-				planeScenario.getNetwork().getNodes().get(Id.createNodeId(flightInformation.ADEP + "runwayOutbound")),
-				planeScenario.getNetwork().getNodes().get(Id.createNodeId(flightInformation.ADES + "runwayInbound")),
+				from,
+				to,
 				planeScenario.getNetwork(),
 				flightInformation.distance,
 				flightInformation.distance / time,
@@ -172,13 +202,15 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 			);
 
 			planeScenario.getTransitSchedule().getTransitLines().get(lineId).addRoute(scheduleFactory.createTransitRoute(routeId, route, stops, "pt"));
+			planeScenario.getTransitSchedule().getTransitLines().get(lineId).getRoutes().get(routeId).addDeparture(scheduleFactory.createDeparture(departureId, flightInformation.filedOffBlockTime.toLocalTime().toSecondOfDay()));
+			// TODO Departures have no vehicles assigned yet
 		}
 
 		// Print output files
 		NetworkUtils.writeNetwork(planeScenario.getNetwork(), outputNetwork);
 		new TransitScheduleWriter(planeScenario.getTransitSchedule()).writeFile(outputSchedule);
 
-		return (Integer) 0;
+		return 0;
 	}
 
 	private void addAirportToNetwork(Network planeNetwork, Tuple<String, Coord> airport){
