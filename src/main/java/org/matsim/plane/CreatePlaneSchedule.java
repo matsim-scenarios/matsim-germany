@@ -217,7 +217,7 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		List<Node> airportNodes = new ArrayList<>();
 		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "runwayInbound"), airport.getSecond()));
 		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "taxiInbound"), CoordUtils.plus(airport.getSecond(), new Coord(1500, 0))));
-		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() ), CoordUtils.plus(airport.getSecond(), new Coord(2000, 500))));
+		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst()), CoordUtils.plus(airport.getSecond(), new Coord(2000, 500))));
 		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "apron"), CoordUtils.plus(airport.getSecond(), new Coord(2000, 1000))));
 		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "taxiOutbound"), CoordUtils.plus(airport.getSecond(), new Coord(1500, 1500))));
 		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "runwayOutbound"), CoordUtils.plus(airport.getSecond(), new Coord(0, 1500))));
