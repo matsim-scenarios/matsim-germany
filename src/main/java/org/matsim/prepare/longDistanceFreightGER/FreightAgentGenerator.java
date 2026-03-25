@@ -6,6 +6,7 @@ import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.*;
 import org.matsim.application.options.LanduseOptions;
+import org.matsim.core.gbl.MatsimRandom;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.scenario.ProjectionUtils;
 
@@ -22,6 +23,7 @@ class FreightAgentGenerator {
     private final PopulationFactory populationFactory;
     private final Network network;
 	private final Set<String> modes;
+	private final double sample;
 
     public FreightAgentGenerator(Network network, String shpPath, LanduseOptions landUse, Set<String> modes, double averageTruckLoad, int workingDays, double sample) throws IOException {
         this.roadLocationCalculator = new DefaultLocationCalculator(network, shpPath, landUse, TransportMode.car);
@@ -31,6 +33,7 @@ class FreightAgentGenerator {
 		this.populationFactory = PopulationUtils.getFactory();
         this.network = network;
 		this.modes = modes;
+		this.sample = sample;
     }
 
     public List<Person> generateFreightAgents(TripRelation tripRelation, String tripRelationId) {
@@ -45,6 +48,8 @@ class FreightAgentGenerator {
         int numOfTruckTrips = numOfTruckTripsCalculator.calculateNumberOfTrips(tripRelation.getTonsPerYear(), tripRelation.getGoodsType());
 		// trains/day is probably 0 for most relations and train loads vary a lot. For the time being have 1 train/year instead
 		int numOfTrainTrips = 1;
+		// instead interpret sample size as include freight relation at all or not
+		Random railSampler = MatsimRandom.getLocalInstance();
 
 		if (preRunMode.equals(TripRelation.ModesInputData.road) && modes.contains(preRunMode)) {
 			for (int i = 0; i < numOfTruckTrips; i++) {
@@ -58,8 +63,8 @@ class FreightAgentGenerator {
 			}
 		}
 
-		// main-run is railway
-		if (mainRunMode.equals(TripRelation.ModesInputData.rail) && modes.contains(mainRunMode)) {
+		// main-run is railway. Sample here instead of varying the number of trips
+		if (mainRunMode.equals(TripRelation.ModesInputData.rail) && modes.contains(mainRunMode) && railSampler.nextDouble() < sample) {
 			for (int i = 0; i < numOfTrainTrips; i++) {
 				String preMainPost = "main";
 				String startCell = tripRelation.getOriginCellMainRun();
