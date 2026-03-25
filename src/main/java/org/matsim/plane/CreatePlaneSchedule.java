@@ -22,6 +22,10 @@ import org.matsim.core.utils.geometry.CoordUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.pt.transitSchedule.TransitScheduleFactoryImpl;
 import org.matsim.pt.transitSchedule.api.*;
+import org.matsim.vehicles.MatsimVehicleWriter;
+import org.matsim.vehicles.Vehicle;
+import org.matsim.vehicles.VehicleType;
+import org.matsim.vehicles.VehicleUtils;
 import picocli.CommandLine;
 
 import java.io.IOException;
@@ -44,7 +48,7 @@ import java.util.*;
  * using the {@link AirportNetworkFuser}.
  */
 public class CreatePlaneSchedule implements MATSimAppCommand {
-	// TODO Vehicle Types are a problem, no free data for ICAO codes available!
+	// TODO Vehicle Types are a problem, no free data for ICAO codes available! We are currently just using a defaultPlane
 
 	private static final Logger log = LogManager.getLogger(CreatePlaneSchedule.class);
 
@@ -54,11 +58,17 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 	@CommandLine.Option(names = "--sample-day", description = "The day to sample from the dataset. Make sure to give a date with no holidays or other unusual events. Format: DD-MM-YYYY", required = true)
 	private String sampleDay;
 
+	@CommandLine.Option(names = "--default-passenger-capacity", description = "Passenger capacity for all planes (currently no free data for plane capacities available)", required = true)
+	private int defaultPassengerCapacity;
+
 	@CommandLine.Option(names = "--network-output", description = "Path to output network", required = true)
 	private String outputNetwork;
 
 	@CommandLine.Option(names = "--schedule-output", description = "Path to output schedule", required = true)
 	private String outputSchedule;
+
+	@CommandLine.Option(names = "--vehicle-output", description = "Path to output vehicles", required = true)
+	private String outputVehicles;
 
 	@CommandLine.Mixin
 	private CrsOptions crs = new CrsOptions("EPSG:4326");
@@ -121,6 +131,11 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		Scenario planeScenario = ScenarioUtils.createScenario(ConfigUtils.createConfig());
 		TransitScheduleFactoryImpl scheduleFactory = new TransitScheduleFactoryImpl();
 
+		// Create a default Plane Type
+		VehicleType defaultPlane = VehicleUtils.createVehicleType(Id.createVehicleTypeId("defaultPlane"), "pt");
+		defaultPlane.getCapacity().setSeats(defaultPassengerCapacity);
+		planeScenario.getTransitVehicles().addVehicleType(defaultPlane);
+
 		// Create the plane-network and add airports into it (without connections)
 		for(var airport : airportSet){
 			addAirportToNetwork(planeScenario.getNetwork(), airport);
@@ -138,6 +153,7 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 			Id<Link> linkId = Id.createLinkId(id);
 			Id<TransitLine> lineId = Id.create(id, TransitLine.class);
 			Id<TransitRoute> routeId = Id.create(id, TransitRoute.class);
+			Id<Vehicle> vehicleId = Id.create(id, Vehicle.class);
 			Id<Departure> departureId = Id.create(id, Departure.class);
 
 			// Skip if flightInformation can't be added
@@ -202,12 +218,16 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 			);
 
 			planeScenario.getTransitSchedule().getTransitLines().get(lineId).addRoute(scheduleFactory.createTransitRoute(routeId, route, stops, "pt"));
-			planeScenario.getTransitSchedule().getTransitLines().get(lineId).getRoutes().get(routeId).addDeparture(scheduleFactory.createDeparture(departureId, flightInformation.filedOffBlockTime.toLocalTime().toSecondOfDay()));
-			// TODO Departures have no vehicles assigned yet
+
+			planeScenario.getTransitVehicles().addVehicle(VehicleUtils.createVehicle(vehicleId, defaultPlane));
+			Departure departure = scheduleFactory.createDeparture(departureId, flightInformation.filedOffBlockTime.toLocalTime().toSecondOfDay());
+			departure.setVehicleId(vehicleId);
+			planeScenario.getTransitSchedule().getTransitLines().get(lineId).getRoutes().get(routeId).addDeparture(departure);
 		}
 
 		// Print output files
 		NetworkUtils.writeNetwork(planeScenario.getNetwork(), outputNetwork);
+		new MatsimVehicleWriter(planeScenario.getTransitVehicles()).writeFile(outputVehicles);
 		new TransitScheduleWriter(planeScenario.getTransitSchedule()).writeFile(outputSchedule);
 
 		return 0;
