@@ -70,7 +70,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 	private Path inputNetwork;
 
 	@CommandLine.Option(names = "--input-freight-plans", description = "input freight plans", required = true,
-		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-1.0pct.plans.xml.gz")
+		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-100.0pct.plans.xml.gz")
 	private Path inputFreightPlans;
 
 	@CommandLine.Option(names = "--output", description = "output csv file", required = true,
@@ -84,8 +84,9 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 
 	static final String[] HEADER = {"fromX", "fromY", "toX", "toY", "fromLink", "toLink",
 		"pre-run_mode", "main-run_mode", "post-run_mode", "initial_origin_cell", "origin_cell_main_run", "destination_cell_main_run",
-		"final_destination_cell", "goods_type", "tons_year", "length_access", "length_egress",
-		"length_non_electrified", "length_electrified", "length_electrified_incl_proposed"};
+		"final_destination_cell", "origin_cell_main_run_in_germany", "destination_cell_main_run_in_germany", "goods_type", "tons_year",
+		"length_access_km", "length_egress_km",
+		"length_non_electrified_km", "length_electrified_km", "length_electrified_incl_proposed_km"};
 
 	public static void main(String[] args) {
 		new RouteRailFreightOnElectrifiedNetwork().execute(args);
@@ -146,6 +147,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		 * Route and analyze on 3 different filtered networks: all railways, electrified incl. proposed electrification, already electrified.
 		 * This uses the pre-attributed and cleaned networks from CreateNetworkFromOSM.
 		 * In order to make results comparable, map all activities to the nearest link on the already the electrified railway network.
+		 * Track classes (maximum weight / axle) is not sufficiently tagged yet and therefore ignored. Also gradient is not sufficiently tagged
 		 */
 		NetworkFilterManager filterElectrified = new NetworkFilterManager(scenario.getNetwork(), new NetworkConfigGroup());
 		filterElectrified.addLinkFilter(l -> {
@@ -167,13 +169,26 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		}
 
 		XY2Links xy2Links = new XY2Links(electrifiedRailwayNetwork, scenario.getActivityFacilities());
-		int counter = 0;
+		int counterAll = 0;
+		int counterRailTrips = 0;
 		int nextMsg=1;
+		double sumTons = 0.0;
+		double accessLegLengthNonElectrifiedKm = 0.0;
+		double egressLegLengthNonElectrifiedKm = 0.0;
+		double sumLengthNonElectrifiedKm = 0.0;
+		double sumLengthElectrifiedKm = 0.0;
+		double sumLengthElectrifiedOrProposedKm = 0.0;
+		double accessLegLengthNonElectrifiedWeighted = 0.0;
+		double egressLegLengthNonElectrifiedWeighted = 0.0;
+		double sumLengthNonElectrifiedWeighted = 0.0;
+		double sumLengthElectrifiedWeighted = 0.0;
+		double sumLengthElectrifiedOrProposedWeighted = 0.0;
+
 		for (Person person: scenario.getPopulation().getPersons().values()) {
-			counter++;
-			if (counter % nextMsg == 0) {
+			counterAll++;
+			if (counterAll % nextMsg == 0) {
 				nextMsg *= 4;
-				log.info(" person # " + counter);}
+				log.info(" routed person # " + counterAll);}
 			if (!person.getId().toString().contains(LONG_DISTANCE_FREIGHT)) {continue;}
 			xy2Links.run(person);
 			// The correct input file should have one plan per person with one trip and one leg each.
@@ -185,6 +200,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 			Verify.verify(trip.getLegsOnly().size() == 1, person.getId() + " has more than 1 leg before routing.");
 			Leg singleLeg = trip.getLegsOnly().get(0);
 			if (!singleLeg.getMode().equals(LEG_MODE_FREIGHT_RAIL)) {continue;}
+			counterRailTrips++;
 
 			Facility originFacility = FacilitiesUtils.wrapActivity(trip.getOriginActivity());
 			Facility destinationFacility = FacilitiesUtils.wrapActivity(trip.getDestinationActivity());
@@ -200,6 +216,29 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 				CreateNetworkFromOSM.RAIL_ELECTRIFIED_INCL_PROPOSED, originFacility, destinationFacility, 0.0d, person, trip.getTripAttributes());
 			Leg electrifiedInclProposedLeg = (Leg) routeElectrifiedInclProposed.get(2);
 
+			// mode railway occurs in input survey data only on main run
+			boolean originCellMainRunInGermany = cellInGermany((String) person.getAttributes().getAttribute("origin_cell_main_run"));
+			boolean destinationCellMainRunInGermany = cellInGermany((String) person.getAttributes().getAttribute("destination_cell_main_run"));
+			double tonsPerYear = (double) person.getAttributes().getAttribute("tons_per_year");
+
+			if (originCellMainRunInGermany) {
+				accessLegLengthNonElectrifiedKm += accessLeg.getRoute().getDistance() / 1000;
+				accessLegLengthNonElectrifiedWeighted += accessLeg.getRoute().getDistance() * tonsPerYear / 1000;
+			}
+			if (destinationCellMainRunInGermany) {
+				egressLegLengthNonElectrifiedKm += egressLeg.getRoute().getDistance() / 1000;
+				egressLegLengthNonElectrifiedWeighted += egressLeg.getRoute().getDistance() * tonsPerYear / 1000;
+			}
+			if (originCellMainRunInGermany && destinationCellMainRunInGermany) {
+				sumLengthNonElectrifiedKm += nonElectrifiedLeg.getRoute().getDistance() / 1000;
+				sumLengthElectrifiedKm += electrifiedLeg.getRoute().getDistance() / 1000;
+				sumLengthElectrifiedOrProposedKm += electrifiedInclProposedLeg.getRoute().getDistance() / 1000;
+				sumLengthNonElectrifiedWeighted += nonElectrifiedLeg.getRoute().getDistance() * tonsPerYear / 1000;
+				sumLengthElectrifiedWeighted += electrifiedLeg.getRoute().getDistance() * tonsPerYear / 1000;
+				sumLengthElectrifiedOrProposedWeighted += electrifiedInclProposedLeg.getRoute().getDistance() * tonsPerYear / 1000;
+				sumTons += (double) person.getAttributes().getAttribute("tons_per_year");
+			}
+
 			try {
 				printer.print(originFacility.getCoord().getX());
 				printer.print(originFacility.getCoord().getY());
@@ -214,13 +253,15 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 				printer.print(person.getAttributes().getAttribute("origin_cell_main_run"));
 				printer.print(person.getAttributes().getAttribute("destination_cell_main_run"));
 				printer.print(person.getAttributes().getAttribute("final_destination_cell"));
+				printer.print(originCellMainRunInGermany);
+				printer.print(destinationCellMainRunInGermany);
 				printer.print(person.getAttributes().getAttribute("goods_type"));
 				printer.print(person.getAttributes().getAttribute("tons_per_year"));
-				printer.print(accessLeg.getRoute().getDistance());
-				printer.print(egressLeg.getRoute().getDistance());
-				printer.print(nonElectrifiedLeg.getRoute().getDistance());
-				printer.print(electrifiedLeg.getRoute().getDistance());
-				printer.print(electrifiedInclProposedLeg.getRoute().getDistance());
+				printer.print(accessLeg.getRoute().getDistance() / 1000);
+				printer.print(egressLeg.getRoute().getDistance() / 1000);
+				printer.print(nonElectrifiedLeg.getRoute().getDistance() / 1000);
+				printer.print(electrifiedLeg.getRoute().getDistance() / 1000);
+				printer.print(electrifiedInclProposedLeg.getRoute().getDistance() / 1000);
 				printer.println();
 			} catch (IOException e) {
 				log.error(e);
@@ -230,9 +271,43 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		printer.flush();
 		printer.close();
 
+		// nur Deutschland betrachten
+
+		System.out.println("sum, average, sum*tons and average weighted by tons");
+		System.out.println("trips,tons,length_access_km,length_egress_km,length_non_electrified_km,length_electrified_km,length_electrified_incl_proposed_km");
+		System.out.println(counterRailTrips + "," + sumTons + "," + accessLegLengthNonElectrifiedKm + "," + egressLegLengthNonElectrifiedKm + "," +
+			sumLengthNonElectrifiedKm + "," + sumLengthElectrifiedKm + "," + sumLengthElectrifiedOrProposedKm);
+		System.out.println(counterRailTrips/counterRailTrips + "," + sumTons/counterRailTrips + "," + accessLegLengthNonElectrifiedKm/counterRailTrips + "," +
+			egressLegLengthNonElectrifiedKm/counterRailTrips + "," + sumLengthNonElectrifiedKm/counterRailTrips + "," +
+			sumLengthElectrifiedKm/counterRailTrips + "," + sumLengthElectrifiedOrProposedKm/counterRailTrips);
+		System.out.println(counterRailTrips + "," + 1.0 + "," + accessLegLengthNonElectrifiedWeighted + "," +
+			egressLegLengthNonElectrifiedWeighted + "," + sumLengthNonElectrifiedWeighted + "," +
+			sumLengthElectrifiedWeighted + "," + sumLengthElectrifiedOrProposedWeighted);
+		System.out.println(counterRailTrips/sumTons + "," + 1.0 + "," + accessLegLengthNonElectrifiedWeighted/sumTons + "," +
+			egressLegLengthNonElectrifiedWeighted/sumTons + "," + sumLengthNonElectrifiedWeighted/sumTons + "," +
+			sumLengthElectrifiedWeighted/sumTons + "," + sumLengthElectrifiedOrProposedWeighted/sumTons);
+
+		// additionally weighted by tons
+
+		// 1pct or 5pct schlechteste raussuchen (access/egress schlecht, Umweg gross)
+
+		// Mail an Goehlichs zu Ladezeiten, Kosten Batterielok in Google Docs vorschreiben, ggf. RE fragen, Wir versuchen unseren Teil mit Verspätung noch fertigzustellen. Im großen , zum Vergleich würde uns interessieren wie teuer so eine Lok wäre. Habt ihr da eine Intuition
+
+
 		// route : all, only electrified, proposed-electrified
 		// output: from, to, tons/year, length non-electrified, electrified, proposed-electrified
 		// ggf. Streckenbelastungen
 		return 0;
+	}
+
+	private static boolean cellInGermany(String cell) {
+		int originCellMainRun = Integer.parseInt(cell);
+		if (originCellMainRun < 100000) {
+			// case 5-digit Verkehrsprognose 2030 cells
+			return originCellMainRun < 21000;
+		} else {
+			// case 7-digit Verkehrsprognose 2030 cells
+			return originCellMainRun < 2100000;
+		}
 	}
 }
