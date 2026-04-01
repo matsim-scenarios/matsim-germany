@@ -28,20 +28,23 @@ import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Network;
-import org.matsim.api.core.v01.population.Leg;
-import org.matsim.api.core.v01.population.Person;
-import org.matsim.api.core.v01.population.PlanElement;
+import org.matsim.api.core.v01.population.*;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.contrib.osm.networkReader.OsmTags;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.config.groups.NetworkConfigGroup;
 import org.matsim.core.config.groups.QSimConfigGroup;
+import org.matsim.core.config.groups.ReplanningConfigGroup;
 import org.matsim.core.config.groups.ScoringConfigGroup;
+import org.matsim.core.controler.Controler;
 import org.matsim.core.controler.Injector;
 import org.matsim.core.controler.OutputDirectoryHierarchy;
 import org.matsim.core.gbl.Gbl;
 import org.matsim.core.network.filter.NetworkFilterManager;
+import org.matsim.core.population.algorithms.PersonPrepareForSim;
+import org.matsim.core.population.routes.GenericRouteImpl;
+import org.matsim.core.replanning.modules.ReRoute;
 import org.matsim.core.router.TripRouter;
 import org.matsim.core.router.TripStructureUtils;
 import org.matsim.core.scenario.ScenarioUtils;
@@ -70,12 +73,20 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 	private Path inputNetwork;
 
 	@CommandLine.Option(names = "--input-freight-plans", description = "input freight plans", required = true,
-		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-100.0pct.plans.xml.gz")
+		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-0.1pct.plans.xml.gz")
 	private Path inputFreightPlans;
 
 	@CommandLine.Option(names = "--output", description = "output csv file", required = true,
 		defaultValue = "../shared-svn/projects/matsim-germany/zerocuts2/freight-rail_routes-on-electrified-network-analysis.csv")
 	private Path output;
+
+	@CommandLine.Option(names = "--outputPlans", description = "output plans file", required = true,
+		defaultValue = "../shared-svn/projects/matsim-germany/zerocuts2/freight-rail_routes-on-electrified-network-analysis_plans")
+	private Path outputPlans;
+
+	@CommandLine.Option(names = "--outputRun", description = "output directory run", required = true,
+		defaultValue = "../shared-svn/projects/matsim-germany/zerocuts2/freight-rail_routes-on-electrified-network-analysis_run/")
+	private Path outputRun;
 
 	private com.google.inject.Injector injector;
 	private TripRouter tripRouter;
@@ -85,7 +96,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 	static final String[] HEADER = {"fromX", "fromY", "toX", "toY", "fromLink", "toLink",
 		"pre-run_mode", "main-run_mode", "post-run_mode", "initial_origin_cell", "origin_cell_main_run", "destination_cell_main_run",
 		"final_destination_cell", "origin_cell_main_run_in_germany", "destination_cell_main_run_in_germany", "goods_type", "tons_year",
-		"length_access_km", "length_egress_km",
+		"person_id", "length_access_km", "length_egress_km",
 		"length_non_electrified_km", "length_electrified_km", "length_electrified_incl_proposed_km"};
 
 	public static void main(String[] args) {
@@ -103,9 +114,22 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		Set<String> railwayModes = Set.of(OsmTags.RAIL, CreateNetworkFromOSM.RAIL_ELECTRIFIED, CreateNetworkFromOSM.RAIL_ELECTRIFIED_INCL_PROPOSED);
 		config.routing().setNetworkModes(railwayModes); // this hopefully sets up network routing modules
 		config.routing().getBeelineDistanceFactors().put(TransportMode.walk, 1.0d); // we want pure beeline
+		config.scoring().setPerforming_utils_hr(0.0);
+		ScoringConfigGroup.ActivityParams freightStartActivityParams = new ScoringConfigGroup.ActivityParams("freight_start");
+		freightStartActivityParams.setTypicalDuration(3600);
+		config.scoring().addActivityParams(freightStartActivityParams);
+		ScoringConfigGroup.ActivityParams freightEndActivityParams = new ScoringConfigGroup.ActivityParams("freight_end");
+		freightEndActivityParams.setTypicalDuration(3600);
+		config.scoring().addActivityParams(freightEndActivityParams);
 		ScoringConfigGroup.ModeParams scoreFreightRail = new ScoringConfigGroup.ModeParams(LEG_MODE_FREIGHT_RAIL);
+		scoreFreightRail.setMarginalUtilityOfTraveling(0.0);
+		scoreFreightRail.setMonetaryDistanceRate(-0.1);
 		ScoringConfigGroup.ModeParams scoreRailElectrified = new ScoringConfigGroup.ModeParams(CreateNetworkFromOSM.RAIL_ELECTRIFIED);
+		scoreRailElectrified.setMarginalUtilityOfTraveling(0.0);
+		scoreRailElectrified.setMonetaryDistanceRate(-0.1);
 		ScoringConfigGroup.ModeParams scoreRailElectrifiedInclProposed = new ScoringConfigGroup.ModeParams(CreateNetworkFromOSM.RAIL_ELECTRIFIED_INCL_PROPOSED);
+		scoreRailElectrifiedInclProposed.setMarginalUtilityOfTraveling(0.0);
+		scoreRailElectrifiedInclProposed.setMonetaryDistanceRate(-0.1);
 
 		config.scoring().addModeParams(scoreFreightRail);
 		config.scoring().addModeParams(scoreRailElectrified);
@@ -116,18 +140,49 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		modesThatNeedVehicleTypes.add(LEG_MODE_FREIGHT_ROAD);
 		modesThatNeedVehicleTypes.add(LEG_MODE_FREIGHT_RAIL);
 		modesThatNeedVehicleTypes.addAll(railwayModes);
+
+		ScenarioUtils.loadScenario(scenario);
+
 		Map<String, Id<VehicleType>> modeToVehicleType = new HashMap<>();
 		for (String mode: modesThatNeedVehicleTypes) {
 			VehicleType vehicleType = scenario.getVehicles().addModeVehicleType(mode);
-			vehicleType.setMaximumVelocity(100/3.6);
+			vehicleType.setMaximumVelocity(80/3.6);
 			modeToVehicleType.put(mode, vehicleType.getId());
 		}
-		ScenarioUtils.loadScenario(scenario);
+
+		List<Person> personsToAdd = new ArrayList<>();
+		PopulationFactory populationFactory = scenario.getPopulation().getFactory();
+		for (Person person: scenario.getPopulation().getPersons().values()) {
+			Person electrifiedRoutePerson = populationFactory.createPerson(Id.createPersonId(person.getId().toString() + "_electrified"));
+			Plan electrifiedRoutePlan = populationFactory.createPlan();
+			electrifiedRoutePerson.addPlan(electrifiedRoutePlan);
+			personsToAdd.add(electrifiedRoutePerson);
+
+			Person electrifiedInclProposedRoutePerson = populationFactory.createPerson(Id.createPersonId(person.getId().toString() + "_electrifiedInclProposed"));
+			Plan electrifiedInclProposedRoutePlan = populationFactory.createPlan();
+			electrifiedInclProposedRoutePerson.addPlan(electrifiedInclProposedRoutePlan);
+			personsToAdd.add(electrifiedInclProposedRoutePerson);
+
+			for (PlanElement planElement: person.getSelectedPlan().getPlanElements()) {
+				if (planElement instanceof Activity) {
+					Activity activity = (Activity) planElement;
+					electrifiedRoutePlan.addActivity(populationFactory.createActivityFromCoord(activity.getType(), activity.getCoord()));
+					electrifiedInclProposedRoutePlan.addActivity(populationFactory.createActivityFromCoord(activity.getType(), activity.getCoord()));
+				} else {
+					electrifiedRoutePlan.addLeg(populationFactory.createLeg(CreateNetworkFromOSM.RAIL_ELECTRIFIED));
+					electrifiedInclProposedRoutePlan.addLeg(populationFactory.createLeg(CreateNetworkFromOSM.RAIL_ELECTRIFIED_INCL_PROPOSED));
+				}
+			}
+		}
+
+		for (Person person: personsToAdd) {
+			scenario.getPopulation().addPerson(person);
+		}
 
 		// Since this is not running PersonPrepareForSim, we have to manually add all VehicleTypes to all Persons (it failed without), and even then
 		// it failed with "Could not retrieve vehicle id from person: longDistanceFreight_0_0_main", so explicitly add Vehicles...
 		for (Person person: scenario.getPopulation().getPersons().values()) {
-			VehicleUtils.insertVehicleTypesIntoPersonAttributes(person, modeToVehicleType);
+//			VehicleUtils.insertVehicleTypesIntoPersonAttributes(person, modeToVehicleType);
 			Map<String, Id<Vehicle>> modeToVehicle = new HashMap<>();
 			for (Map.Entry<String, Id<VehicleType>> modeVehicleType: modeToVehicleType.entrySet()) {
 				Id<Vehicle> vehicleId = VehicleUtils.createVehicleId(person, modeVehicleType.getKey());
@@ -185,6 +240,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		double sumLengthElectrifiedOrProposedWeighted = 0.0;
 
 		for (Person person: scenario.getPopulation().getPersons().values()) {
+			if (person.getId().toString().endsWith("_electrified") || person.getId().toString().endsWith("_electrifiedInclProposed")) { continue;}
 			counterAll++;
 			if (counterAll % nextMsg == 0) {
 				nextMsg *= 4;
@@ -204,16 +260,20 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 
 			Facility originFacility = FacilitiesUtils.wrapActivity(trip.getOriginActivity());
 			Facility destinationFacility = FacilitiesUtils.wrapActivity(trip.getDestinationActivity());
+
+			Person electrifiedRoutePerson = scenario.getPopulation().getPersons().get(Id.createPersonId(person.getId().toString() + "_electrified"));
+			Person electrifiedInclProposedRoutePerson = scenario.getPopulation().getPersons().get(Id.createPersonId(person.getId().toString() + "_electrifiedInclProposed"));
+
 			List<PlanElement> routeNonElectrified = (List<PlanElement>) tripRouter.calcRoute(
 				OsmTags.RAIL, originFacility, destinationFacility, 0.0d, person, trip.getTripAttributes());
 			Leg accessLeg = (Leg) routeNonElectrified.get(0);
 			Leg egressLeg = (Leg) routeNonElectrified.get(4);
 			Leg nonElectrifiedLeg = (Leg) routeNonElectrified.get(2);
 			List<PlanElement> routeElectrified = (List<PlanElement>) tripRouter.calcRoute(
-				CreateNetworkFromOSM.RAIL_ELECTRIFIED, originFacility, destinationFacility, 0.0d, person, trip.getTripAttributes());
+				CreateNetworkFromOSM.RAIL_ELECTRIFIED, originFacility, destinationFacility, 0.0d, electrifiedRoutePerson, trip.getTripAttributes());
 			Leg electrifiedLeg = (Leg) routeElectrified.get(2);
 			List<PlanElement> routeElectrifiedInclProposed = (List<PlanElement>) tripRouter.calcRoute(
-				CreateNetworkFromOSM.RAIL_ELECTRIFIED_INCL_PROPOSED, originFacility, destinationFacility, 0.0d, person, trip.getTripAttributes());
+				CreateNetworkFromOSM.RAIL_ELECTRIFIED_INCL_PROPOSED, originFacility, destinationFacility, 0.0d, electrifiedInclProposedRoutePerson, trip.getTripAttributes());
 			Leg electrifiedInclProposedLeg = (Leg) routeElectrifiedInclProposed.get(2);
 
 			// mode railway occurs in input survey data only on main run
@@ -239,6 +299,28 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 				sumTons += (double) person.getAttributes().getAttribute("tons_per_year");
 			}
 
+			if (!outputPlans.equals("")) {
+				PopulationFactory factory = scenario.getPopulation().getFactory();
+				Plan plan = person.getSelectedPlan();
+				// copy Person since Via only shows selected plan, not alternative plans
+				plan.getPlanElements().clear();
+				plan.addActivity(trip.getOriginActivity());
+				plan.getPlanElements().addAll(routeNonElectrified);
+				plan.addActivity(trip.getDestinationActivity());
+
+				Plan electrifiedPlan = electrifiedRoutePerson.getSelectedPlan();
+				electrifiedPlan.getPlanElements().clear();
+				electrifiedPlan.addActivity(trip.getOriginActivity());
+				electrifiedPlan.getPlanElements().addAll(routeElectrified);
+				electrifiedPlan.addActivity(trip.getDestinationActivity());
+
+				Plan electrifiedInclProposedPlan = electrifiedInclProposedRoutePerson.getSelectedPlan();
+				electrifiedInclProposedPlan.getPlanElements().clear();
+				electrifiedInclProposedPlan.addActivity(trip.getOriginActivity());
+				electrifiedInclProposedPlan.getPlanElements().addAll(routeElectrifiedInclProposed);
+				electrifiedInclProposedPlan.addActivity(trip.getDestinationActivity());
+			}
+
 			try {
 				printer.print(originFacility.getCoord().getX());
 				printer.print(originFacility.getCoord().getY());
@@ -257,6 +339,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 				printer.print(destinationCellMainRunInGermany);
 				printer.print(person.getAttributes().getAttribute("goods_type"));
 				printer.print(person.getAttributes().getAttribute("tons_per_year"));
+				printer.print(person.getId().toString());
 				printer.print(accessLeg.getRoute().getDistance() / 1000);
 				printer.print(egressLeg.getRoute().getDistance() / 1000);
 				printer.print(nonElectrifiedLeg.getRoute().getDistance() / 1000);
@@ -270,6 +353,26 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 
 		printer.flush();
 		printer.close();
+
+		if (!outputPlans.equals("")) {
+			PopulationWriter populationWriter = new PopulationWriter(scenario.getPopulation());
+			populationWriter.write(outputPlans.toString() + ".xml.gz");
+		}
+
+		if (!outputRun.equals("")) {
+			Controler controller = new Controler(scenario);
+			config.controller().setOutputDirectory(outputRun.toString());
+			config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.overwriteExistingFiles);
+			ReplanningConfigGroup.StrategySettings strategySettings = new ReplanningConfigGroup.StrategySettings();
+			strategySettings.setStrategyName("ChangeExpBeta");
+			strategySettings.setWeight(1.0);
+			strategySettings.setSubpopulation("longDistanceFreight");
+			config.replanning().addStrategySettings(strategySettings);
+			config.controller().setLastIteration(0);
+			config.routing().setNetworkModes(railwayModes);
+			config.qsim().setMainModes(railwayModes);
+			controller.run();
+		}
 
 		// nur Deutschland betrachten
 
