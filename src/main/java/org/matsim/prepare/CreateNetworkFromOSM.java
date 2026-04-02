@@ -120,7 +120,7 @@ public class CreateNetworkFromOSM implements MATSimAppCommand {
 		NetworkUtils.cleanNetwork(network, modesRoadNetwork);
 		ProjectionUtils.putCRS(network, crs.getTargetCRS());
 		if (outputIntermediates != null) {
-			new NetworkWriter(network).write(outputIntermediates.resolve("network-roads.xml.gz").toString());
+			new NetworkWriter(network).write(outputIntermediates.resolve("german-wide-freight-v3-network-roads.xml.gz").toString());
 		}
 		log.info("Car network done.");
 
@@ -130,7 +130,7 @@ public class CreateNetworkFromOSM implements MATSimAppCommand {
 		Network railwayNetwork = railwayReader.read(inputPbfRailways);
 		ProjectionUtils.putCRS(railwayNetwork, crs.getTargetCRS());
 		if (outputIntermediates != null) {
-			new NetworkWriter(railwayNetwork).write(outputIntermediates.resolve("network-railways-unfiltered.xml.gz").toString());
+			new NetworkWriter(railwayNetwork).write(outputIntermediates.resolve("german-wide-freight-v3-network-railways-unfiltered.xml.gz").toString());
 		}
 
 		// Filter to mainline rail (removes tram, metros, narrow gauge etc.)
@@ -161,7 +161,7 @@ public class CreateNetworkFromOSM implements MATSimAppCommand {
 		Network filteredRailwayNetwork = networkFilterManager.applyFilters();
 		NetworkUtils.cleanNetwork(filteredRailwayNetwork, new HashSet<>(Collections.singletonList(OsmTags.RAIL)));
 		if (outputIntermediates != null) {
-			new NetworkWriter(filteredRailwayNetwork).write(outputIntermediates.resolve("network-railways-filtered.xml.gz").toString());
+			new NetworkWriter(filteredRailwayNetwork).write(outputIntermediates.resolve("german-wide-freight-v3-network-railways-filtered.xml.gz").toString());
 		}
 
 		// add transport modes railway_electrifiedInclProposed, railway_electrified
@@ -194,7 +194,7 @@ public class CreateNetworkFromOSM implements MATSimAppCommand {
 		networkCleaner.run(Set.of(RAIL_ELECTRIFIED));
 		networkCleaner.run(Set.of(RAIL_ELECTRIFIED_INCL_PROPOSED));
 		if (outputIntermediates != null) {
-			new NetworkWriter(filteredRailwayNetwork).write(outputIntermediates.resolve("network-railways-final.xml.gz").toString());
+			new NetworkWriter(filteredRailwayNetwork).write(outputIntermediates.resolve("german-wide-freight-v3-network-railways-final.xml.gz").toString());
 		}
 
 		// copy filteredRailwayNetwork into network

@@ -68,7 +68,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 
 	@CommandLine.Option(names = "--input-network", description = "input network", required = true,
 //		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-network.xml.gz")
-	defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/network-railways-final.xml.gz")
+	defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-network-railways-final.xml.gz")
 
 	private Path inputNetwork;
 
