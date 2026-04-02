@@ -124,6 +124,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		Set<String> railwayModes = Set.of(OsmTags.RAIL, CreateNetworkFromOSM.RAIL_ELECTRIFIED, CreateNetworkFromOSM.RAIL_ELECTRIFIED_INCL_PROPOSED);
 		config.routing().setNetworkModes(railwayModes); // this hopefully sets up network routing modules
 		config.routing().getBeelineDistanceFactors().put(TransportMode.walk, 1.0d); // we want pure beeline
+		config.routing().setRoutingRandomness(0.0);
 		config.scoring().setPerforming_utils_hr(0.0);
 		ScoringConfigGroup.ActivityParams freightStartActivityParams = new ScoringConfigGroup.ActivityParams("freight_start");
 		freightStartActivityParams.setTypicalDuration(3600);
