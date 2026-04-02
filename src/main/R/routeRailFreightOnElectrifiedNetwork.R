@@ -80,3 +80,6 @@ relations_99pct_access_electrified_km <- relations_from_point %>%
 tm_shape(relations_99pct_access_electrified_km) +
   tm_dots(size = "tons_year")
 
+negative_detour <- relations_from_point %>%
+  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
+  filter(detour_electrified_km < 0)
