@@ -27,7 +27,9 @@ import org.apache.logging.log4j.Logger;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
+import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
+import org.matsim.api.core.v01.network.NetworkWriter;
 import org.matsim.api.core.v01.population.*;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.contrib.osm.networkReader.OsmTags;
@@ -41,6 +43,9 @@ import org.matsim.core.controler.Controler;
 import org.matsim.core.controler.Injector;
 import org.matsim.core.controler.OutputDirectoryHierarchy;
 import org.matsim.core.gbl.Gbl;
+import org.matsim.core.network.NetworkUtils;
+import org.matsim.core.network.algorithms.NetworkCalcTopoType;
+import org.matsim.core.network.algorithms.NetworkSimplifier;
 import org.matsim.core.network.filter.NetworkFilterManager;
 import org.matsim.core.population.algorithms.PersonPrepareForSim;
 import org.matsim.core.population.routes.GenericRouteImpl;
@@ -61,6 +66,7 @@ import picocli.CommandLine;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.function.BiPredicate;
 
 import static org.matsim.prepare.longDistanceFreightGER.GenerateFreightPlans.*;
 
@@ -147,7 +153,25 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 
 		ScenarioUtils.loadScenario(scenario);
 
-		// NetworkSimplifier
+		// normal NetworkSimplifier is not helpful:
+		// default is networkSimplifier.setMergeLinkStats(false): this merges only a small share of links
+		// networkSimplifier.setMergeLinkStats(true) merges many links, but drops the allowed modes attribute, and after cleaning the electrified network shrank to a single station
+		// the custom IsMergeablePredicate as tried out below is not working
+//		NetworkSimplifier networkSimplifier = NetworkSimplifier.createNetworkSimplifier(scenario.getNetwork());
+//		BiPredicate<Link, Link> linksMergeablePredicate = (link1, link2) ->
+//		{
+//			if (//link1.getAllowedModes().equals(link2.getAllowedModes())
+//				link1.getAllowedModes().containsAll(link2.getAllowedModes()) && link2.getAllowedModes().containsAll(link1.getAllowedModes())
+//			 )
+//				return true;
+//			return false;
+//		};
+//		networkSimplifier.registerIsMergeablePredicate(linksMergeablePredicate);
+////		networkSimplifier.setMergeLinkStats(true);
+//		networkSimplifier.run(scenario.getNetwork());
+//		NetworkUtils.cleanNetwork(scenario.getNetwork(), railwayModes);
+//		NetworkWriter networkWriter = new NetworkWriter(scenario.getNetwork());
+//		networkWriter.write("../shared-svn/projects/matsim-germany/zerocuts2/network_railway_final_simplified.xml.gz");
 
 		Map<String, Id<VehicleType>> modeToVehicleType = new HashMap<>();
 		for (String mode: modesThatNeedVehicleTypes) {

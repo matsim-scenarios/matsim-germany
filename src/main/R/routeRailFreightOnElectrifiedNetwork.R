@@ -19,6 +19,10 @@ relations_to_point <- relations_orig %>% mutate(detour_electrified_km = length_e
          destination_cell_main_run_in_germany = as.logical(destination_cell_main_run_in_germany)) %>% 
   st_as_sf(coords = c("toX","toY"), crs = 25832)
 
+negative_detour <- relations_from_point %>%
+  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
+  filter(detour_electrified_km < 0)
+
 negative_detour_extreme <- relations_from_point %>%
   filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
   filter(detour_electrified_km < -30)
