@@ -35,10 +35,7 @@ import org.matsim.application.MATSimAppCommand;
 import org.matsim.contrib.osm.networkReader.OsmTags;
 import org.matsim.core.config.Config;
 import org.matsim.core.config.ConfigUtils;
-import org.matsim.core.config.groups.NetworkConfigGroup;
-import org.matsim.core.config.groups.QSimConfigGroup;
-import org.matsim.core.config.groups.ReplanningConfigGroup;
-import org.matsim.core.config.groups.ScoringConfigGroup;
+import org.matsim.core.config.groups.*;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.controler.Injector;
 import org.matsim.core.controler.OutputDirectoryHierarchy;
@@ -79,7 +76,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 	private Path inputNetwork;
 
 	@CommandLine.Option(names = "--input-freight-plans", description = "input freight plans", required = true,
-		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-0.1pct.plans.xml.gz")
+		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-100.0pct.plans.xml.gz")
 	private Path inputFreightPlans;
 
 	@CommandLine.Option(names = "--output", description = "output csv file", required = true,
@@ -119,8 +116,17 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		config.qsim().setVehiclesSource(QSimConfigGroup.VehiclesSource.modeVehicleTypesFromVehiclesData);
 		// it manages to fail due to the output directory although no simulation is run and consequentially no output should be written
 		config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.overwriteExistingFiles);
+
+		// using default ControllerConfigGroup.RoutingAlgorithmType.SpeedyALT we randomly get non-electrified routes longer than respective electrified routes (2 in a 304 relations sample)
+//		config.controller().setRoutingAlgorithmType(ControllerConfigGroup.RoutingAlgorithmType.SpeedyALT);
+		// In the same 304 relations sample (german-wide-freight-v3-0.1pct.plans.xml.gz) both Dijkstra and AStarLandmarks had 0 relations with non-electrified route longer than respective electrified route.
+		// Of all 302717 relations, only 2 had that issue with AStarLandmarks (those are different relations from the 2 in the small SpeedyALT relations sample). Dijkstra takes too long to try with all relations.
+//		config.controller().setRoutingAlgorithmType(ControllerConfigGroup.RoutingAlgorithmType.Dijkstra);
+		config.controller().setRoutingAlgorithmType(ControllerConfigGroup.RoutingAlgorithmType.AStarLandmarks);
+
 		config.network().setInputFile(inputNetwork.toString());
-		config.plans().setInputFile(inputFreightPlans.toString());
+//		config.plans().setInputFile(inputFreightPlans.toString());
+		config.plans().setInputFile("../shared-svn/projects/matsim-germany/zerocuts2/freight-rail_routes-on-electrified-network-analysis_run_routingRandomness0_AStarLandmarks/freight-rail_routes-on-electrified-network-analysis_plans.xml.gz");
 		Set<String> railwayModes = Set.of(OsmTags.RAIL, CreateNetworkFromOSM.RAIL_ELECTRIFIED, CreateNetworkFromOSM.RAIL_ELECTRIFIED_INCL_PROPOSED);
 		config.routing().setNetworkModes(railwayModes); // this hopefully sets up network routing modules
 		config.routing().getBeelineDistanceFactors().put(TransportMode.walk, 1.0d); // we want pure beeline
@@ -168,11 +174,8 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 //			return false;
 //		};
 //		networkSimplifier.registerIsMergeablePredicate(linksMergeablePredicate);
-////		networkSimplifier.setMergeLinkStats(true);
 //		networkSimplifier.run(scenario.getNetwork());
 //		NetworkUtils.cleanNetwork(scenario.getNetwork(), railwayModes);
-//		NetworkWriter networkWriter = new NetworkWriter(scenario.getNetwork());
-//		networkWriter.write("../shared-svn/projects/matsim-germany/zerocuts2/network_railway_final_simplified.xml.gz");
 
 		Map<String, Id<VehicleType>> modeToVehicleType = new HashMap<>();
 		for (String mode: modesThatNeedVehicleTypes) {
