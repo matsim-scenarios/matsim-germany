@@ -125,8 +125,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		config.controller().setRoutingAlgorithmType(ControllerConfigGroup.RoutingAlgorithmType.AStarLandmarks);
 
 		config.network().setInputFile(inputNetwork.toString());
-//		config.plans().setInputFile(inputFreightPlans.toString());
-		config.plans().setInputFile("../shared-svn/projects/matsim-germany/zerocuts2/freight-rail_routes-on-electrified-network-analysis_run_routingRandomness0_AStarLandmarks/freight-rail_routes-on-electrified-network-analysis_plans.xml.gz");
+		config.plans().setInputFile(inputFreightPlans.toString());
 		Set<String> railwayModes = Set.of(OsmTags.RAIL, CreateNetworkFromOSM.RAIL_ELECTRIFIED, CreateNetworkFromOSM.RAIL_ELECTRIFIED_INCL_PROPOSED);
 		config.routing().setNetworkModes(railwayModes); // this hopefully sets up network routing modules
 		config.routing().getBeelineDistanceFactors().put(TransportMode.walk, 1.0d); // we want pure beeline
