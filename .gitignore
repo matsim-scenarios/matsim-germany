@@ -24,3 +24,5 @@ hs_err_pid*
 # Mac file
 *.DS_Store
 /.DS_Store
+
+/dependency-reduced-pom.xml
