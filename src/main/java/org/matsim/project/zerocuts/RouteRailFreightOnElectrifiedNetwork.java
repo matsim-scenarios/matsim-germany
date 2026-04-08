@@ -79,17 +79,9 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-100.0pct.plans.xml.gz")
 	private Path inputFreightPlans;
 
-	@CommandLine.Option(names = "--output", description = "output csv file", required = true,
-		defaultValue = "../shared-svn/projects/matsim-germany/zerocuts2/freight-rail_routes-on-electrified-network-analysis.csv")
+	@CommandLine.Option(names = "--outputDirectory", description = "output csv file", required = true,
+		defaultValue = "../shared-svn/projects/matsim-germany/zerocuts2/railfreight_routes")
 	private Path output;
-
-	@CommandLine.Option(names = "--outputPlans", description = "output plans file", required = true,
-		defaultValue = "../shared-svn/projects/matsim-germany/zerocuts2/freight-rail_routes-on-electrified-network-analysis_plans")
-	private Path outputPlans;
-
-	@CommandLine.Option(names = "--outputRun", description = "output directory run", required = true,
-		defaultValue = "../shared-svn/projects/matsim-germany/zerocuts2/freight-rail_routes-on-electrified-network-analysis_run/")
-	private Path outputRun;
 
 	private com.google.inject.Injector injector;
 	private TripRouter tripRouter;
@@ -121,8 +113,8 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 //		config.controller().setRoutingAlgorithmType(ControllerConfigGroup.RoutingAlgorithmType.SpeedyALT);
 		// In the same 304 relations sample (german-wide-freight-v3-0.1pct.plans.xml.gz) both Dijkstra and AStarLandmarks had 0 relations with non-electrified route longer than respective electrified route.
 		// Of all 302717 relations, only 2 had that issue with AStarLandmarks (those are different relations from the 2 in the small SpeedyALT relations sample). Dijkstra takes too long to try with all relations.
-//		config.controller().setRoutingAlgorithmType(ControllerConfigGroup.RoutingAlgorithmType.Dijkstra);
-		config.controller().setRoutingAlgorithmType(ControllerConfigGroup.RoutingAlgorithmType.AStarLandmarks);
+		config.controller().setRoutingAlgorithmType(ControllerConfigGroup.RoutingAlgorithmType.Dijkstra);
+//		config.controller().setRoutingAlgorithmType(ControllerConfigGroup.RoutingAlgorithmType.AStarLandmarks);
 
 		config.network().setInputFile(inputNetwork.toString());
 		config.plans().setInputFile(inputFreightPlans.toString());
@@ -247,7 +239,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		Network electrifiedRailwayNetwork = filterElectrified.applyFilters();
 
 		CSVPrinter printer = null;
-		try {printer = new CSVPrinter(IOUtils.getBufferedWriter(output.toString()),
+		try {printer = new CSVPrinter(IOUtils.getBufferedWriter(output.resolve("railfreight_electrified_route_analysis.csv").toString()),
 			CSVFormat.Builder.create()
 				.setDelimiter(columnSeparator)
 				.setHeader(HEADER)
@@ -332,27 +324,25 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 				sumTons += (double) person.getAttributes().getAttribute("tons_per_year");
 			}
 
-			if (!outputPlans.equals("")) {
-				PopulationFactory factory = scenario.getPopulation().getFactory();
-				Plan plan = person.getSelectedPlan();
-				// copy Person since Via only shows selected plan, not alternative plans
-				plan.getPlanElements().clear();
-				plan.addActivity(trip.getOriginActivity());
-				plan.getPlanElements().addAll(routeNonElectrified);
-				plan.addActivity(trip.getDestinationActivity());
+			PopulationFactory factory = scenario.getPopulation().getFactory();
+			Plan plan = person.getSelectedPlan();
+			// copy Person since Via only shows selected plan, not alternative plans
+			plan.getPlanElements().clear();
+			plan.addActivity(trip.getOriginActivity());
+			plan.getPlanElements().addAll(routeNonElectrified);
+			plan.addActivity(trip.getDestinationActivity());
 
-				Plan electrifiedPlan = electrifiedRoutePerson.getSelectedPlan();
-				electrifiedPlan.getPlanElements().clear();
-				electrifiedPlan.addActivity(trip.getOriginActivity());
-				electrifiedPlan.getPlanElements().addAll(routeElectrified);
-				electrifiedPlan.addActivity(trip.getDestinationActivity());
+			Plan electrifiedPlan = electrifiedRoutePerson.getSelectedPlan();
+			electrifiedPlan.getPlanElements().clear();
+			electrifiedPlan.addActivity(trip.getOriginActivity());
+			electrifiedPlan.getPlanElements().addAll(routeElectrified);
+			electrifiedPlan.addActivity(trip.getDestinationActivity());
 
-				Plan electrifiedInclProposedPlan = electrifiedInclProposedRoutePerson.getSelectedPlan();
-				electrifiedInclProposedPlan.getPlanElements().clear();
-				electrifiedInclProposedPlan.addActivity(trip.getOriginActivity());
-				electrifiedInclProposedPlan.getPlanElements().addAll(routeElectrifiedInclProposed);
-				electrifiedInclProposedPlan.addActivity(trip.getDestinationActivity());
-			}
+			Plan electrifiedInclProposedPlan = electrifiedInclProposedRoutePerson.getSelectedPlan();
+			electrifiedInclProposedPlan.getPlanElements().clear();
+			electrifiedInclProposedPlan.addActivity(trip.getOriginActivity());
+			electrifiedInclProposedPlan.getPlanElements().addAll(routeElectrifiedInclProposed);
+			electrifiedInclProposedPlan.addActivity(trip.getDestinationActivity());
 
 			try {
 				printer.print(originFacility.getCoord().getX());
@@ -387,25 +377,21 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		printer.flush();
 		printer.close();
 
-		if (!outputPlans.equals("")) {
-			PopulationWriter populationWriter = new PopulationWriter(scenario.getPopulation());
-			populationWriter.write(outputPlans.toString() + ".xml.gz");
-		}
+		PopulationWriter populationWriter = new PopulationWriter(scenario.getPopulation());
+		populationWriter.write(output.resolve("railfreight_plans_routed.xml.gz").toString());
 
-		if (!outputRun.equals("")) {
-			Controler controller = new Controler(scenario);
-			config.controller().setOutputDirectory(outputRun.toString());
-			config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.overwriteExistingFiles);
-			ReplanningConfigGroup.StrategySettings strategySettings = new ReplanningConfigGroup.StrategySettings();
-			strategySettings.setStrategyName("ChangeExpBeta");
-			strategySettings.setWeight(1.0);
-			strategySettings.setSubpopulation("longDistanceFreight");
-			config.replanning().addStrategySettings(strategySettings);
-			config.controller().setLastIteration(0);
-			config.routing().setNetworkModes(railwayModes);
-			config.qsim().setMainModes(railwayModes);
-			controller.run();
-		}
+		Controler controller = new Controler(scenario);
+		config.controller().setOutputDirectory(output.resolve("run").toString());
+		config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.overwriteExistingFiles);
+		ReplanningConfigGroup.StrategySettings strategySettings = new ReplanningConfigGroup.StrategySettings();
+		strategySettings.setStrategyName("ChangeExpBeta");
+		strategySettings.setWeight(1.0);
+		strategySettings.setSubpopulation("longDistanceFreight");
+		config.replanning().addStrategySettings(strategySettings);
+		config.controller().setLastIteration(0);
+		config.routing().setNetworkModes(railwayModes);
+		config.qsim().setMainModes(railwayModes);
+		controller.run();
 
 		// nur Deutschland betrachten
 
