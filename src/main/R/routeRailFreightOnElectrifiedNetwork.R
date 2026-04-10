@@ -2,7 +2,16 @@ library(tidyverse)
 library(tmap)
 library(sf)
 
-relations_orig <- read.csv("~/git/shared-svn/projects/matsim-germany/zerocuts2/freight-rail_routes-on-electrified-network-analysis.csv")
+relations_orig_astarlandmarks <- read.csv("~/git/shared-svn/projects/matsim-germany/zerocuts2/astarlandmarks/railfreight_electrified_route_analysis.csv")
+relations_from_point_astarlandmarks <- relations_orig_astarlandmarks %>% mutate(detour_electrified_km = length_electrified_km - length_non_electrified_km,
+                                                  detour_electrified_incl_proposed_km = length_electrified_incl_proposed_km - length_non_electrified_km) %>% 
+  mutate(origin_cell_main_run_in_germany = as.logical(origin_cell_main_run_in_germany), 
+         destination_cell_main_run_in_germany = as.logical(destination_cell_main_run_in_germany)) %>% 
+  st_as_sf(coords = c("fromX","fromY"), crs = 25832)
+negative_detour_astarlandmarks <- relations_from_point_astarlandmarks %>%
+  filter(detour_electrified_km < 0)
+
+relations_orig <- read.csv("~/git/shared-svn/projects/matsim-germany/zerocuts2/dijkstra/railfreight_electrified_route_analysis.csv")
 # boolean access in Germany, egress in Germany. In Mittelwert nur das Ende in Deutschland berücksichtigen
 # umwegfaktor
 # freight-rail_routes-on-electrified-network-analysis_1kmh.csv
@@ -20,12 +29,10 @@ relations_to_point <- relations_orig %>% mutate(detour_electrified_km = length_e
   st_as_sf(coords = c("toX","toY"), crs = 25832)
 
 negative_detour <- relations_from_point %>%
-  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
   filter(detour_electrified_km < 0)
 
-negative_detour_extreme <- relations_from_point %>%
-  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
-  filter(detour_electrified_km < -30)
+relations_from_point %>% filter (person_id %in% negative_detour_astarlandmarks$person_id)
+negative_detour_astarlandmarks
 
 # Check plausibility of goods flows on map
 tmap_mode("view")
@@ -84,6 +91,3 @@ relations_99pct_access_electrified_km <- relations_from_point %>%
 tm_shape(relations_99pct_access_electrified_km) +
   tm_dots(size = "tons_year")
 
-negative_detour <- relations_from_point %>%
-  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
-  filter(detour_electrified_km < 0)

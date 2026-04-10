@@ -112,9 +112,9 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		// using default ControllerConfigGroup.RoutingAlgorithmType.SpeedyALT we randomly get non-electrified routes longer than respective electrified routes (2 in a 304 relations sample)
 //		config.controller().setRoutingAlgorithmType(ControllerConfigGroup.RoutingAlgorithmType.SpeedyALT);
 		// In the same 304 relations sample (german-wide-freight-v3-0.1pct.plans.xml.gz) both Dijkstra and AStarLandmarks had 0 relations with non-electrified route longer than respective electrified route.
-		// Of all 302717 relations, only 2 had that issue with AStarLandmarks (those are different relations from the 2 in the small SpeedyALT relations sample). Dijkstra takes too long to try with all relations.
+		// Of all 302717 relations, only 2 had that issue with AStarLandmarks (those are different relations from the 2 in the small SpeedyALT relations sample).
+		// Only Dijkstra gave 0 such issues on all 302717 relations, but takes 2 days on the cluster.
 		config.controller().setRoutingAlgorithmType(ControllerConfigGroup.RoutingAlgorithmType.Dijkstra);
-//		config.controller().setRoutingAlgorithmType(ControllerConfigGroup.RoutingAlgorithmType.AStarLandmarks);
 
 		config.network().setInputFile(inputNetwork.toString());
 		config.plans().setInputFile(inputFreightPlans.toString());
