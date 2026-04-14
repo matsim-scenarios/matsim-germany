@@ -133,6 +133,7 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 
 		// Create a default Plane Type
 		VehicleType defaultPlane = VehicleUtils.createVehicleType(Id.createVehicleTypeId("defaultPlane"), "pt");
+		defaultPlane.getAttributes().putAttribute("airplane", "yes");
 		defaultPlane.getCapacity().setSeats(defaultPassengerCapacity);
 		planeScenario.getTransitVehicles().addVehicleType(defaultPlane);
 
@@ -182,8 +183,7 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 				continue;
 			}
 
-			// Add the link for this flight
-			planeScenario.getNetwork().addLink(NetworkUtils.createLink(
+			var flightLink = NetworkUtils.createLink(
 				linkId,
 				from,
 				to,
@@ -192,7 +192,11 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 				flightInformation.distance / time,
 				3600,
 				1
-			));
+			);
+			flightLink.getAttributes().putAttribute("flightConnection", "yes");
+
+			// Add the link for this flight
+			planeScenario.getNetwork().addLink(flightLink);
 
 			// Add the transitLine
 
@@ -219,10 +223,16 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 
 			planeScenario.getTransitSchedule().getTransitLines().get(lineId).addRoute(scheduleFactory.createTransitRoute(routeId, route, stops, "pt"));
 
-			planeScenario.getTransitVehicles().addVehicle(VehicleUtils.createVehicle(vehicleId, defaultPlane));
+			Vehicle plane = VehicleUtils.createVehicle(vehicleId, defaultPlane);
+			plane.getAttributes().putAttribute("airplane", "yes");
+			planeScenario.getTransitVehicles().addVehicle(plane);
 			Departure departure = scheduleFactory.createDeparture(departureId, flightInformation.filedOffBlockTime.toLocalTime().toSecondOfDay());
 			departure.setVehicleId(vehicleId);
 			planeScenario.getTransitSchedule().getTransitLines().get(lineId).getRoutes().get(routeId).addDeparture(departure);
+
+			// Add attributes to the schedules
+			planeScenario.getTransitSchedule().getTransitLines().get(lineId).getAttributes().putAttribute("flightConnection", "yes");
+
 		}
 
 		// Print output files
@@ -242,15 +252,24 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "taxiOutbound"), CoordUtils.plus(airport.getSecond(), new Coord(1500, 1500))));
 		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "runwayOutbound"), CoordUtils.plus(airport.getSecond(), new Coord(0, 1500))));
 
+		// Add an attribute to the airport nodes (makes identification of airports easier)
 		for(var node : airportNodes){
+			node.getAttributes().putAttribute("airport", airport.getFirst());
 			planeNetwork.addNode(node);
 		}
 
-		planeNetwork.addLink(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "runwayInbound"), airportNodes.get(0), airportNodes.get(1), planeNetwork, 1500, 1500, 3600, 1));
-		planeNetwork.addLink(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "taxiInbound"), airportNodes.get(1), airportNodes.get(2), planeNetwork, 500, 20/3.6, 3600, 1));
-		planeNetwork.addLink(NetworkUtils.createLink(Id.createLinkId(airport.getFirst()), airportNodes.get(2), airportNodes.get(3), planeNetwork, 500, 20/3.6, 3600, 1));
-		planeNetwork.addLink(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "taxiOutbound"), airportNodes.get(3), airportNodes.get(4), planeNetwork, 500, 20/3.6, 3600, 1));
-		planeNetwork.addLink(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "runwayOutbound"), airportNodes.get(4), airportNodes.get(5), planeNetwork, 1500, 1500, 3600, 1));
+		List<Link> airportLinks = new ArrayList<>();
+		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "runwayInbound"), airportNodes.get(0), airportNodes.get(1), planeNetwork, 1500, 1500, 3600, 1));
+		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "taxiInbound"), airportNodes.get(1), airportNodes.get(2), planeNetwork, 500, 20/3.6, 3600, 1));
+		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst()), airportNodes.get(2), airportNodes.get(3), planeNetwork, 500, 20/3.6, 3600, 1));
+		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "taxiOutbound"), airportNodes.get(3), airportNodes.get(4), planeNetwork, 500, 20/3.6, 3600, 1));
+		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "runwayOutbound"), airportNodes.get(4), airportNodes.get(5), planeNetwork, 1500, 1500, 3600, 1));
+
+		// Add an attribute to the airport links (makes identification of airports easier)
+		for (var link : airportLinks){
+			link.getAttributes().putAttribute("airport", airport.getFirst());
+			planeNetwork.addLink(link);
+		}
 	}
 
 	record FlightInformation(String id, String ADEP, String ADES, LocalDateTime filedOffBlockTime, LocalDateTime filedArrivalTime, double distance){}
