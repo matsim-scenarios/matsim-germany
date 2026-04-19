@@ -58,6 +58,62 @@ tm_shape(relations_to_aggr %>% group_by(toLink) %>% summarise(sum_tons = sum(sum
 tm_shape(relations_to_aggr %>% filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany)) +
   tm_dots(size = "sum_tons")
 
+# average detours
+summary_all_germany <- relations_from_point %>% 
+  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
+  summarise(number_relations = n(),
+            sum_tons_year = sum(tons_year),
+            length_access_km_mean = mean(length_access_km),
+            length_egress_km_mean = mean(length_egress_km),
+    length_non_electrified_km_mean = mean(length_non_electrified_km),
+            detour_electrified_km_mean = mean(detour_electrified_km),
+    detour_electrified_incl_proposed_km_mean = mean(detour_electrified_incl_proposed_km))
+
+summary_electrified_longer_germany <- relations_from_point %>% 
+  filter(detour_electrified_km > 0.001) %>% 
+  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
+  summarise(number_relations = n(),
+            sum_tons_year = sum(tons_year),
+            length_access_km_mean = mean(length_access_km),
+            length_egress_km_mean = mean(length_egress_km),
+            length_non_electrified_km_mean = mean(length_non_electrified_km),
+            detour_electrified_km_mean = mean(detour_electrified_km),
+            detour_electrified_incl_proposed_km_mean = mean(detour_electrified_incl_proposed_km) )
+
+summary_electrified1km_longer_germany <- relations_from_point %>% 
+  filter(detour_electrified_km > 1) %>% 
+  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
+  summarise(number_relations = n(),
+            sum_tons_year = sum(tons_year),
+            length_access_km_mean = mean(length_access_km),
+            length_egress_km_mean = mean(length_egress_km),
+            length_non_electrified_km_mean = mean(length_non_electrified_km),
+            detour_electrified_km_mean = mean(detour_electrified_km),
+            detour_electrified_incl_proposed_km_mean = mean(detour_electrified_incl_proposed_km) )
+
+summary_electrified10km_longer_germany <- relations_from_point %>% 
+  filter(detour_electrified_km > 10) %>% 
+  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
+  summarise(number_relations = n(),
+            sum_tons_year = sum(tons_year),
+            length_access_km_mean = mean(length_access_km),
+            length_egress_km_mean = mean(length_egress_km),
+            length_non_electrified_km_mean = mean(length_non_electrified_km),
+            detour_electrified_km_mean = mean(detour_electrified_km),
+            detour_electrified_incl_proposed_km_mean = mean(detour_electrified_incl_proposed_km) )
+
+summary_electrified50km_longer_germany <- relations_from_point %>% 
+  filter(detour_electrified_km > 50) %>% 
+  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
+  summarise(number_relations = n(),
+            sum_tons_year = sum(tons_year),
+            length_access_km_mean = mean(length_access_km),
+            length_egress_km_mean = mean(length_egress_km),
+            length_non_electrified_km_mean = mean(length_non_electrified_km),
+            detour_electrified_km_mean = mean(detour_electrified_km),
+            detour_electrified_incl_proposed_km_mean = mean(detour_electrified_incl_proposed_km) )
+
+
 # Investigate longest detours of electrified network route in respect to total network
 quantiles_detour_electrified_km <- relations_from_point %>% 
   filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 

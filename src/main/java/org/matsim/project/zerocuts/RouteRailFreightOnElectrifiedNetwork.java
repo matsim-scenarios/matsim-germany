@@ -70,7 +70,6 @@ import static org.matsim.prepare.longDistanceFreightGER.GenerateFreightPlans.*;
 public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 
 	@CommandLine.Option(names = "--input-network", description = "input network", required = true,
-//		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-network.xml.gz")
 	defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-network-railways-final.xml.gz")
 
 	private Path inputNetwork;
@@ -106,7 +105,6 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		Config config = ConfigUtils.createConfig();//ConfigUtils.loadConfig();
 		config.global().setCoordinateSystem("EPSG:25832");
 		config.qsim().setVehiclesSource(QSimConfigGroup.VehiclesSource.modeVehicleTypesFromVehiclesData);
-		// it manages to fail due to the output directory although no simulation is run and consequentially no output should be written
 		config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.overwriteExistingFiles);
 
 		// using default ControllerConfigGroup.RoutingAlgorithmType.SpeedyALT we randomly get non-electrified routes longer than respective electrified routes (2 in a 304 relations sample)
@@ -151,23 +149,6 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 
 		ScenarioUtils.loadScenario(scenario);
 
-		// normal NetworkSimplifier is not helpful:
-		// default is networkSimplifier.setMergeLinkStats(false): this merges only a small share of links
-		// networkSimplifier.setMergeLinkStats(true) merges many links, but drops the allowed modes attribute, and after cleaning the electrified network shrank to a single station
-		// the custom IsMergeablePredicate as tried out below is not working
-//		NetworkSimplifier networkSimplifier = NetworkSimplifier.createNetworkSimplifier(scenario.getNetwork());
-//		BiPredicate<Link, Link> linksMergeablePredicate = (link1, link2) ->
-//		{
-//			if (//link1.getAllowedModes().equals(link2.getAllowedModes())
-//				link1.getAllowedModes().containsAll(link2.getAllowedModes()) && link2.getAllowedModes().containsAll(link1.getAllowedModes())
-//			 )
-//				return true;
-//			return false;
-//		};
-//		networkSimplifier.registerIsMergeablePredicate(linksMergeablePredicate);
-//		networkSimplifier.run(scenario.getNetwork());
-//		NetworkUtils.cleanNetwork(scenario.getNetwork(), railwayModes);
-
 		Map<String, Id<VehicleType>> modeToVehicleType = new HashMap<>();
 		for (String mode: modesThatNeedVehicleTypes) {
 			VehicleType vehicleType = scenario.getVehicles().addModeVehicleType(mode);
@@ -207,7 +188,6 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		// Since this is not running PersonPrepareForSim, we have to manually add all VehicleTypes to all Persons (it failed without), and even then
 		// it failed with "Could not retrieve vehicle id from person: longDistanceFreight_0_0_main", so explicitly add Vehicles...
 		for (Person person: scenario.getPopulation().getPersons().values()) {
-//			VehicleUtils.insertVehicleTypesIntoPersonAttributes(person, modeToVehicleType);
 			Map<String, Id<Vehicle>> modeToVehicle = new HashMap<>();
 			for (Map.Entry<String, Id<VehicleType>> modeVehicleType: modeToVehicleType.entrySet()) {
 				Id<Vehicle> vehicleId = VehicleUtils.createVehicleId(person, modeVehicleType.getKey());
@@ -223,12 +203,6 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 			.build();
 		tripRouter = injector.getInstance( TripRouter.class );
 
-		/*
-		 * Route and analyze on 3 different filtered networks: all railways, electrified incl. proposed electrification, already electrified.
-		 * This uses the pre-attributed and cleaned networks from CreateNetworkFromOSM.
-		 * In order to make results comparable, map all activities to the nearest link on the already the electrified railway network.
-		 * Track classes (maximum weight / axle) is not sufficiently tagged yet and therefore ignored. Also gradient is not sufficiently tagged
-		 */
 		NetworkFilterManager filterElectrified = new NetworkFilterManager(scenario.getNetwork(), new NetworkConfigGroup());
 		filterElectrified.addLinkFilter(l -> {
 			if (l.getAllowedModes().contains(CreateNetworkFromOSM.RAIL_ELECTRIFIED)) {
@@ -264,6 +238,12 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		double sumLengthElectrifiedWeighted = 0.0;
 		double sumLengthElectrifiedOrProposedWeighted = 0.0;
 
+		/*
+		 * Route and analyze on 3 different filtered networks: all railways, already electrified, electrified incl. proposed electrification.
+		 * This uses the pre-attributed and cleaned networks from CreateNetworkFromOSM.
+		 * In order to make results comparable, map all activities to the nearest link on the already the electrified railway network.
+		 * Track classes (maximum weight / axle) is not sufficiently tagged yet and therefore ignored. Also gradient is not sufficiently tagged
+		 */
 		for (Person person: scenario.getPopulation().getPersons().values()) {
 			if (person.getId().toString().endsWith("_electrified") || person.getId().toString().endsWith("_electrifiedInclProposed")) { continue;}
 			counterAll++;
@@ -393,31 +373,6 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		config.qsim().setMainModes(railwayModes);
 		controller.run();
 
-		// nur Deutschland betrachten
-
-		System.out.println("sum, average, sum*tons and average weighted by tons");
-		System.out.println("trips,tons,length_access_km,length_egress_km,length_non_electrified_km,length_electrified_km,length_electrified_incl_proposed_km");
-		System.out.println(counterRailTrips + "," + sumTons + "," + accessLegLengthNonElectrifiedKm + "," + egressLegLengthNonElectrifiedKm + "," +
-			sumLengthNonElectrifiedKm + "," + sumLengthElectrifiedKm + "," + sumLengthElectrifiedOrProposedKm);
-		System.out.println(counterRailTrips/counterRailTrips + "," + sumTons/counterRailTrips + "," + accessLegLengthNonElectrifiedKm/counterRailTrips + "," +
-			egressLegLengthNonElectrifiedKm/counterRailTrips + "," + sumLengthNonElectrifiedKm/counterRailTrips + "," +
-			sumLengthElectrifiedKm/counterRailTrips + "," + sumLengthElectrifiedOrProposedKm/counterRailTrips);
-		System.out.println(counterRailTrips + "," + 1.0 + "," + accessLegLengthNonElectrifiedWeighted + "," +
-			egressLegLengthNonElectrifiedWeighted + "," + sumLengthNonElectrifiedWeighted + "," +
-			sumLengthElectrifiedWeighted + "," + sumLengthElectrifiedOrProposedWeighted);
-		System.out.println(counterRailTrips/sumTons + "," + 1.0 + "," + accessLegLengthNonElectrifiedWeighted/sumTons + "," +
-			egressLegLengthNonElectrifiedWeighted/sumTons + "," + sumLengthNonElectrifiedWeighted/sumTons + "," +
-			sumLengthElectrifiedWeighted/sumTons + "," + sumLengthElectrifiedOrProposedWeighted/sumTons);
-
-		// additionally weighted by tons
-
-		// 1pct or 5pct schlechteste raussuchen (access/egress schlecht, Umweg gross)
-
-		// Mail an Goehlichs zu Ladezeiten, Kosten Batterielok in Google Docs vorschreiben, ggf. RE fragen, Wir versuchen unseren Teil mit Verspätung noch fertigzustellen. Im großen , zum Vergleich würde uns interessieren wie teuer so eine Lok wäre. Habt ihr da eine Intuition
-
-
-		// route : all, only electrified, proposed-electrified
-		// output: from, to, tons/year, length non-electrified, electrified, proposed-electrified
 		// ggf. Streckenbelastungen
 		return 0;
 	}
