@@ -102,9 +102,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		if(Files.notExists(output)) {Files.createDirectory(output);}
 
 		// interesting agents are for example
-		// longDistanceFreight_76766_0_main (vehicle longDistanceFreight_76766_0_main_rail): illogical detour within non-electrfied route near Stuttgart
-		// longDistanceFreight_27272_0_main: very short trip, both routes result on all electrified rail lines ("contact_line"), but the "non-electrified" route is longer
-
+		// longDistanceFreight_1988279_0_main, longDistanceFreight_2123505_0_main
 		Config config = ConfigUtils.createConfig();//ConfigUtils.loadConfig();
 		config.global().setCoordinateSystem("EPSG:25832");
 		config.qsim().setVehiclesSource(QSimConfigGroup.VehiclesSource.modeVehicleTypesFromVehiclesData);
