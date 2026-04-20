@@ -227,17 +227,6 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		int counterAll = 0;
 		int counterRailTrips = 0;
 		int nextMsg=1;
-		double sumTons = 0.0;
-		double accessLegLengthNonElectrifiedKm = 0.0;
-		double egressLegLengthNonElectrifiedKm = 0.0;
-		double sumLengthNonElectrifiedKm = 0.0;
-		double sumLengthElectrifiedKm = 0.0;
-		double sumLengthElectrifiedOrProposedKm = 0.0;
-		double accessLegLengthNonElectrifiedWeighted = 0.0;
-		double egressLegLengthNonElectrifiedWeighted = 0.0;
-		double sumLengthNonElectrifiedWeighted = 0.0;
-		double sumLengthElectrifiedWeighted = 0.0;
-		double sumLengthElectrifiedOrProposedWeighted = 0.0;
 
 		/*
 		 * Route and analyze on 3 different filtered networks: all railways, already electrified, electrified incl. proposed electrification.
@@ -286,24 +275,6 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 			boolean originCellMainRunInGermany = cellInGermany((String) person.getAttributes().getAttribute("origin_cell_main_run"));
 			boolean destinationCellMainRunInGermany = cellInGermany((String) person.getAttributes().getAttribute("destination_cell_main_run"));
 			double tonsPerYear = (double) person.getAttributes().getAttribute("tons_per_year");
-
-			if (originCellMainRunInGermany) {
-				accessLegLengthNonElectrifiedKm += accessLeg.getRoute().getDistance() / 1000;
-				accessLegLengthNonElectrifiedWeighted += accessLeg.getRoute().getDistance() * tonsPerYear / 1000;
-			}
-			if (destinationCellMainRunInGermany) {
-				egressLegLengthNonElectrifiedKm += egressLeg.getRoute().getDistance() / 1000;
-				egressLegLengthNonElectrifiedWeighted += egressLeg.getRoute().getDistance() * tonsPerYear / 1000;
-			}
-			if (originCellMainRunInGermany && destinationCellMainRunInGermany) {
-				sumLengthNonElectrifiedKm += nonElectrifiedLeg.getRoute().getDistance() / 1000;
-				sumLengthElectrifiedKm += electrifiedLeg.getRoute().getDistance() / 1000;
-				sumLengthElectrifiedOrProposedKm += electrifiedInclProposedLeg.getRoute().getDistance() / 1000;
-				sumLengthNonElectrifiedWeighted += nonElectrifiedLeg.getRoute().getDistance() * tonsPerYear / 1000;
-				sumLengthElectrifiedWeighted += electrifiedLeg.getRoute().getDistance() * tonsPerYear / 1000;
-				sumLengthElectrifiedOrProposedWeighted += electrifiedInclProposedLeg.getRoute().getDistance() * tonsPerYear / 1000;
-				sumTons += (double) person.getAttributes().getAttribute("tons_per_year");
-			}
 
 			PopulationFactory factory = scenario.getPopulation().getFactory();
 			Plan plan = person.getSelectedPlan();
@@ -361,6 +332,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		PopulationWriter populationWriter = new PopulationWriter(scenario.getPopulation());
 		populationWriter.write(output.resolve("railfreight_plans_routed.xml.gz").toString());
 
+		// run mobism to have events for visualization in Via
 		Controler controller = new Controler(scenario);
 		config.controller().setOutputDirectory(output.resolve("run").toString());
 		config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.overwriteExistingFiles);
