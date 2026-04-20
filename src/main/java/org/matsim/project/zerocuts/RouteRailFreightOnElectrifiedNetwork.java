@@ -61,6 +61,7 @@ import org.matsim.vehicles.VehicleUtils;
 import picocli.CommandLine;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.BiPredicate;
@@ -98,6 +99,8 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 	}
 
 	public Integer call() throws Exception {
+		if(Files.notExists(output)) {Files.createDirectory(output);}
+
 		// interesting agents are for example
 		// longDistanceFreight_76766_0_main (vehicle longDistanceFreight_76766_0_main_rail): illogical detour within non-electrfied route near Stuttgart
 		// longDistanceFreight_27272_0_main: very short trip, both routes result on all electrified rail lines ("contact_line"), but the "non-electrified" route is longer
