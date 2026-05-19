@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.github.matsim-scenarios</groupId>
 	<artifactId>matsim-germany</artifactId>
-6	<version>2026.0</version>
+	<version>2026.0</version>
 
 	<name>MATSim Germany scenario project</name>
 	<description>MATSim Germany scenario project</description>
