@@ -124,7 +124,7 @@ class FreightAgentGenerator {
 
     // TODO store this attribute names as public static strings
     private void writeCommonAttributes(Person person, TripRelation tripRelation, String tripRelationId){
-        person.getAttributes().putAttribute("subpopulation", "freight");
+        person.getAttributes().putAttribute("subpopulation", "longDistanceFreight");
         person.getAttributes().putAttribute("trip_relation_index", tripRelationId);
         person.getAttributes().putAttribute("pre-run_mode", tripRelation.getModePreRun());
         person.getAttributes().putAttribute("main-run_mode", tripRelation.getModeMainRun());
