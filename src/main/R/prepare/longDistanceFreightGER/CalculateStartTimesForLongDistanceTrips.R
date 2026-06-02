@@ -12,9 +12,6 @@ library(ggplot2)
 # 1) CONFIGURATION
 # ============================================================
 # see: https://www.bast.de/DE/Themen/Digitales/HF_1/Massnahmen/verkehrszaehlung/Stundenwerte.html?
-file_A <- "C:/Users/erica/shared/shared-svn/studies/countries/de/bast_zaehlstellen/2023/2023_A_S.zip"
-file_B <- "C:/Users/erica/shared/shared-svn/studies/countries/de/bast_zaehlstellen/2023/2023_B_S.zip"
-
 file_A <- "2023_A_S.zip"
 file_B <- "2023_B_S.zip"
 
