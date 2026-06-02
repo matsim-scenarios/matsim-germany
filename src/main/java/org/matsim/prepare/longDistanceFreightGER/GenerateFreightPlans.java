@@ -13,6 +13,7 @@ import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.scenario.ProjectionUtils;
+import org.matsim.core.utils.misc.Counter;
 import picocli.CommandLine;
 
 import java.io.FileWriter;
@@ -98,16 +99,14 @@ public class GenerateFreightPlans implements MATSimAppCommand {
         Population outputPopulation = PopulationUtils.createPopulation(ConfigUtils.createConfig());
 
 		ProjectionUtils.putCRS( outputPopulation, targetCRS );
+		Counter counter = new Counter("Precessed entries # ", " of " + tripRelations.size() + " trip relations");
 
         for (int i = 0; i < tripRelations.size(); i++) {
             List<Person> persons = freightAgentGenerator.generateFreightAgents(tripRelations.get(i), Integer.toString(i));
             for (Person person : persons) {
                 outputPopulation.addPerson(person);
             }
-
-            if (i % 500000 == 0) {
-				log.info("Processing: {} out of {} entries have been processed", i, tripRelations.size());
-            }
+			counter.incCounter();
         }
         String outputPlansPath = output.toString() + "/german_freight." + pct + "pct.plans.xml.gz";
         PopulationWriter populationWriter = new PopulationWriter(outputPopulation);
