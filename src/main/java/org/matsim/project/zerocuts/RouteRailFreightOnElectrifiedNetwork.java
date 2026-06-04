@@ -24,12 +24,18 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.referencing.FactoryException;
+import org.geotools.api.referencing.operation.MathTransform;
+import org.geotools.api.referencing.operation.TransformException;
+import org.geotools.geometry.jts.JTS;
+import org.geotools.referencing.CRS;
+import org.locationtech.jts.geom.Geometry;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
-import org.matsim.api.core.v01.network.NetworkWriter;
 import org.matsim.api.core.v01.population.*;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.contrib.osm.networkReader.OsmTags;
@@ -41,17 +47,18 @@ import org.matsim.core.controler.Injector;
 import org.matsim.core.controler.OutputDirectoryHierarchy;
 import org.matsim.core.gbl.Gbl;
 import org.matsim.core.network.NetworkUtils;
-import org.matsim.core.network.algorithms.NetworkCalcTopoType;
-import org.matsim.core.network.algorithms.NetworkSimplifier;
+import org.matsim.core.network.algorithms.MultimodalNetworkCleaner;
 import org.matsim.core.network.filter.NetworkFilterManager;
-import org.matsim.core.population.algorithms.PersonPrepareForSim;
-import org.matsim.core.population.routes.GenericRouteImpl;
-import org.matsim.core.replanning.modules.ReRoute;
+import org.matsim.core.population.routes.NetworkRoute;
 import org.matsim.core.router.TripRouter;
 import org.matsim.core.router.TripStructureUtils;
+import org.matsim.core.scenario.MutableScenario;
 import org.matsim.core.scenario.ScenarioUtils;
-import org.matsim.core.population.algorithms.XY2Links;
+import org.matsim.core.utils.geometry.geotools.MGC;
+import org.matsim.core.utils.gis.GeoFileReader;
 import org.matsim.core.utils.io.IOUtils;
+import org.matsim.facilities.ActivityFacilities;
+import org.matsim.facilities.ActivityFacility;
 import org.matsim.facilities.FacilitiesUtils;
 import org.matsim.facilities.Facility;
 import org.matsim.prepare.CreateNetworkFromOSM;
@@ -64,7 +71,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.function.BiPredicate;
+import java.util.stream.Collectors;
 
 import static org.matsim.prepare.longDistanceFreightGER.GenerateFreightPlans.*;
 
@@ -76,8 +83,19 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 	private Path inputNetwork;
 
 	@CommandLine.Option(names = "--input-freight-plans", description = "input freight plans", required = true,
-		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-100.0pct.plans.xml.gz")
+		defaultValue = "../shared-svn/projects/matsim-germany/german-wide-freight-v3/before-calibration/german-wide-freight-v3-1.0pct.plans.xml.gz")
 	private Path inputFreightPlans;
+
+	@CommandLine.Option(names = "--germanyShp", description = "germany boundaries shp for filtering.",
+		defaultValue = "../shared-svn/projects/matsim-germany/shp/germany-area.shp")
+	private Path germanyShp;
+
+	enum NetworkOutsideGermanyHandling {
+		USE_AS_IS, USE_ELECTRIFIED_NETWORK_ONLY//, CUT_NON_ELECTRIFIED_BORDER_CROSSINGS
+	}
+	@CommandLine.Option(names = "--outsideGermanyHandling", description = "germany boundaries shp for filtering.",
+		defaultValue = "USE_ELECTRIFIED_NETWORK_ONLY")
+	private NetworkOutsideGermanyHandling networkOutsideGermanyHandling;
 
 	@CommandLine.Option(names = "--outputDirectory", description = "output csv file", required = true,
 		defaultValue = "../shared-svn/projects/matsim-germany/zerocuts2/railfreight_routes")
@@ -92,7 +110,8 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		"pre-run_mode", "main-run_mode", "post-run_mode", "initial_origin_cell", "origin_cell_main_run", "destination_cell_main_run",
 		"final_destination_cell", "origin_cell_main_run_in_germany", "destination_cell_main_run_in_germany", "goods_type", "tons_year",
 		"person_id", "length_access_km", "length_egress_km",
-		"length_non_electrified_km", "length_electrified_km", "length_electrified_incl_proposed_km"};
+		"length_non_electrified_km", "length_electrified_km", "length_electrified_incl_proposed_km",
+		"length_non_electrified_km_Germany", "length_electrified_km_Germany", "length_electrified_incl_proposed_km_Germany"};
 
 	public static void main(String[] args) {
 		new RouteRailFreightOnElectrifiedNetwork().execute(args);
@@ -101,9 +120,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 	public Integer call() throws Exception {
 		if(Files.notExists(output)) {Files.createDirectory(output);}
 
-		// interesting agents are for example
-		// longDistanceFreight_1988279_0_main, longDistanceFreight_2123505_0_main
-		Config config = ConfigUtils.createConfig();//ConfigUtils.loadConfig();
+		Config config = ConfigUtils.createConfig();
 		config.global().setCoordinateSystem("EPSG:25832");
 		config.qsim().setVehiclesSource(QSimConfigGroup.VehiclesSource.modeVehicleTypesFromVehiclesData);
 		config.controller().setOverwriteFileSetting(OutputDirectoryHierarchy.OverwriteFileSetting.overwriteExistingFiles);
@@ -142,7 +159,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		config.scoring().addModeParams(scoreRailElectrified);
 		config.scoring().addModeParams(scoreRailElectrifiedInclProposed);
 
-		Scenario scenario = ScenarioUtils.createScenario(config);
+		MutableScenario scenario = (MutableScenario) ScenarioUtils.createScenario(config);
 		Set<String> modesThatNeedVehicleTypes = new HashSet<>();
 		modesThatNeedVehicleTypes.add(LEG_MODE_FREIGHT_ROAD);
 		modesThatNeedVehicleTypes.add(LEG_MODE_FREIGHT_RAIL);
@@ -199,6 +216,43 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 			VehicleUtils.insertVehicleIdsIntoAttributes(person, modeToVehicle);
 		}
 
+		GeoFileReader germanyShapeReader = new GeoFileReader();
+		Collection<SimpleFeature> germanyFeatures = germanyShapeReader.readFileAndInitialize(germanyShp.toString());
+		List<Geometry> germanyGeometries;
+		try {
+			MathTransform transform = CRS.findMathTransform(germanyShapeReader.getCoordinateSystem(), CRS.decode(config.global().getCoordinateSystem()));
+			germanyGeometries = germanyFeatures.stream().map(simpleFeature -> {
+				try {
+					return JTS.transform( (Geometry) simpleFeature.getDefaultGeometry(), transform);
+				} catch (TransformException e) {
+					throw new RuntimeException(e);
+				}
+			}).collect(Collectors.toList());
+		} catch (FactoryException e) {
+			throw new RuntimeException(e);
+		}
+
+		if (networkOutsideGermanyHandling == NetworkOutsideGermanyHandling.USE_ELECTRIFIED_NETWORK_ONLY) {
+			NetworkFilterManager filterGermanyAndElectrifiedEurope = new NetworkFilterManager(scenario.getNetwork(), new NetworkConfigGroup());
+			filterGermanyAndElectrifiedEurope.addLinkFilter(l -> {
+				if (l.getAllowedModes().contains(CreateNetworkFromOSM.RAIL_ELECTRIFIED)) {
+					return true;
+				} else if (germanyGeometries.stream().anyMatch(geometry -> geometry.contains(MGC.coord2Point(l.getFromNode().getCoord()))) ||
+					germanyGeometries.stream().anyMatch(geometry -> geometry.contains(MGC.coord2Point(l.getToNode().getCoord())))) {
+					return true;
+				}
+				return false;
+			});
+			Network railwayNetworkGermanyAndElectrifiedEurope = filterGermanyAndElectrifiedEurope.applyFilters();
+
+			MultimodalNetworkCleaner networkCleaner = new MultimodalNetworkCleaner(railwayNetworkGermanyAndElectrifiedEurope);
+			networkCleaner.run(Set.of(LEG_MODE_FREIGHT_RAIL));
+			networkCleaner.run(Set.of(CreateNetworkFromOSM.RAIL_ELECTRIFIED));
+			networkCleaner.run(Set.of(CreateNetworkFromOSM.RAIL_ELECTRIFIED_INCL_PROPOSED));
+
+			scenario.setNetwork(railwayNetworkGermanyAndElectrifiedEurope);
+		}
+
 		this.injector = new Injector.InjectorBuilder( scenario )
 			.addStandardModules()
 			.build();
@@ -213,6 +267,36 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		});
 		Network electrifiedRailwayNetwork = filterElectrified.applyFilters();
 
+		NetworkFilterManager filterGermany = new NetworkFilterManager(scenario.getNetwork(), new NetworkConfigGroup());
+		filterGermany.addLinkFilter(l -> {
+			if (germanyGeometries.stream().anyMatch(geometry -> geometry.contains(MGC.coord2Point(l.getFromNode().getCoord()))) ||
+				germanyGeometries.stream().anyMatch(geometry -> geometry.contains(MGC.coord2Point(l.getToNode().getCoord())))) {
+				return true;
+			}
+			return false;
+		});
+		Network railwayNetworkGermany = filterGermany.applyFilters();
+
+		NetworkFilterManager filterElectrifiedGermany = new NetworkFilterManager(electrifiedRailwayNetwork, new NetworkConfigGroup());
+		filterElectrifiedGermany.addLinkFilter(l -> {
+			if (germanyGeometries.stream().anyMatch(geometry -> geometry.contains(MGC.coord2Point(l.getFromNode().getCoord()))) ||
+				germanyGeometries.stream().anyMatch(geometry -> geometry.contains(MGC.coord2Point(l.getToNode().getCoord())))) {
+				return true;
+			}
+			return false;
+		});
+		Network electrifiedRailwayNetworkGermany = filterElectrifiedGermany.applyFilters();
+
+		NetworkFilterManager filterElectrifiedEuropeOutsideGermany = new NetworkFilterManager(electrifiedRailwayNetwork, new NetworkConfigGroup());
+		filterElectrifiedEuropeOutsideGermany.addLinkFilter(l -> {
+			if (germanyGeometries.stream().anyMatch(geometry -> geometry.contains(MGC.coord2Point(l.getFromNode().getCoord()))) ||
+				germanyGeometries.stream().anyMatch(geometry -> geometry.contains(MGC.coord2Point(l.getToNode().getCoord())))) {
+				return false;
+			}
+			return true;
+		});
+		Network electrifiedRailwayNetworkEuropeOutsideGermany = filterElectrifiedEuropeOutsideGermany.applyFilters();
+
 		CSVPrinter printer = null;
 		try {printer = new CSVPrinter(IOUtils.getBufferedWriter(output.resolve("railfreight_electrified_route_analysis.csv").toString()),
 			CSVFormat.Builder.create()
@@ -223,7 +307,6 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 			log.error(e);
 		}
 
-		XY2Links xy2Links = new XY2Links(electrifiedRailwayNetwork, scenario.getActivityFacilities());
 		int counterAll = 0;
 		int counterRailTrips = 0;
 		int nextMsg=1;
@@ -241,7 +324,8 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 				nextMsg *= 4;
 				log.info(" routed person # " + counterAll);}
 			if (!person.getId().toString().contains(LONG_DISTANCE_FREIGHT)) {continue;}
-			xy2Links.run(person);
+			xy2link(person.getSelectedPlan(), scenario.getActivityFacilities(), electrifiedRailwayNetworkGermany,
+				electrifiedRailwayNetworkEuropeOutsideGermany, germanyGeometries);
 			// The correct input file should have one plan per person with one trip and one leg each.
 			// If that changes this analysis class needs to be adapted.
 			Verify.verify(person.getPlans().size() == 1, person.getId() + " has more than 1 plan.");
@@ -320,6 +404,9 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 				printer.print(nonElectrifiedLeg.getRoute().getDistance() / 1000);
 				printer.print(electrifiedLeg.getRoute().getDistance() / 1000);
 				printer.print(electrifiedInclProposedLeg.getRoute().getDistance() / 1000);
+				printer.print(routeLengthInGermany(nonElectrifiedLeg, railwayNetworkGermany) / 1000);
+				printer.print(routeLengthInGermany(electrifiedLeg, railwayNetworkGermany) / 1000);
+				printer.print(routeLengthInGermany(electrifiedInclProposedLeg, railwayNetworkGermany) / 1000);
 				printer.println();
 			} catch (IOException e) {
 				log.error(e);
@@ -358,6 +445,71 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		} else {
 			// case 7-digit Verkehrsprognose 2030 cells
 			return originCellMainRun < 2100000;
+		}
+	}
+
+	// adaptation of XY2Links from matsim-libs to ensure that German traffic is mapped to a link within Germany.
+	private void xy2link(Plan plan, ActivityFacilities activityFacilities, Network networkGermany, Network networkEuropeOutsideGermany,
+						 List<Geometry> germanyGeometries) {
+		Objects.requireNonNull(activityFacilities);
+		List<PlanElement> planElements = plan.getPlanElements();
+		for (PlanElement planElement : planElements) {
+			if (planElement instanceof Activity) {
+				Activity act = (Activity) planElement;
+
+				if (act.getLinkId() != null) {
+					// there may be activities in a plan that have a link and others that have a coordinate.
+					// Those that have a link do not need a new link.  In addition, they may not even have a
+					// coordinate.  kai/dominik, nov'11
+					continue;
+				}
+
+				if (act.getCoord() == null) {
+					Gbl.assertNotNull(act.getFacilityId());
+					final ActivityFacility activityFacility = activityFacilities.getFacilities().get(act.getFacilityId());
+					Gbl.assertNotNull(activityFacility);
+					act.setCoord(activityFacility.getCoord());
+				}
+
+				// If the linkId is still null get nearest link from the network
+				Link link;
+				if (germanyGeometries.stream().anyMatch(geometry -> geometry.contains(MGC.coord2Point(act.getCoord())))) {
+					link = NetworkUtils.getNearestLink(networkGermany, act.getCoord());
+				} else {
+					link = NetworkUtils.getNearestLink(networkEuropeOutsideGermany, act.getCoord());
+				}
+
+				if (null == link) {
+					throw new RuntimeException("For person id=" + plan.getPerson().getId() + ": getNearestLink returned Null! act=" + act);
+				}
+				act.setLinkId(link.getId());
+			}
+
+		}
+	}
+
+	private double routeLengthInGermany(Leg leg, Network railwayNetworkGermany) {
+		NetworkRoute networkRoute = (NetworkRoute) leg.getRoute();
+		// similar to NetworkRoutingInclAccessEgressModule:451 return length 0 if start==end on network
+		if (networkRoute.getStartLinkId().equals(networkRoute.getEndLinkId())) {
+			return 0.0;
+		}
+		double length = 0.0;
+		for (Id<Link> linkId : networkRoute.getLinkIds()) {
+			length = length + getLinkLengthIfInGermany(railwayNetworkGermany, linkId);
+		}
+		// similar to NetworkRoutingInclAccessEgressModule:441 ignore length of the start link
+		length = length + getLinkLengthIfInGermany(railwayNetworkGermany, networkRoute.getEndLinkId());
+		return length;
+	}
+
+	private static double getLinkLengthIfInGermany(Network railwayNetworkGermany, Id<Link> linkId) {
+		Link link = railwayNetworkGermany.getLinks().get(linkId);
+		// if link exists in filtered network it is located in Germany and we want to add its length
+		if (link != null) {
+			return link.getLength();
+		} else {
+			return 0.0;
 		}
 	}
 }
