@@ -210,14 +210,27 @@ run_analysis <- function(
     hourly_volume,
     aes(x = hour, y = share_pct)
   ) +
-    geom_line() +
-    geom_point() +
+    geom_line(linewidth = 0.9) +
+    geom_point(size = 2.8) +
+    geom_text(
+      aes(label = sprintf("%.1f%%", share_pct)),
+      vjust = -0.7,
+      size = 4.2
+    ) +
     scale_x_continuous(breaks = 0:23) +
+    scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
     labs(
-      title = "BASt 2023 - volumengewichtete Stundenverteilung",
-      subtitle = "Autobahn + Bundesstrasse gemeinsam",
-      x = "Stunde des Tages",
-      y = "Anteil [%]"
+      title = "BASt 2023 - Volume-weighted hourly distribution",
+      subtitle = "Motorways and federal roads combined",
+      x = "Hour of day",
+      y = "Share [%]"
+    ) +
+    theme_bw(base_size = 16) +
+    theme(
+      plot.title = element_text(size = 18, face = "bold"),
+      plot.subtitle = element_text(size = 15),
+      axis.title = element_text(size = 16),
+      axis.text = element_text(size = 13)
     )
 
   print(p1)
@@ -225,23 +238,36 @@ run_analysis <- function(
   ggsave(
     file.path(out_dir, "bast_2023_hourly_volume_weighted.png"),
     p1,
-    width = 10,
-    height = 6,
-    dpi = 150
+    width = 12,
+    height = 7,
+    dpi = 300
   )
 
   p2 <- ggplot(
     hourly_station_day,
     aes(x = hour, y = share_pct)
   ) +
-    geom_line() +
-    geom_point() +
+    geom_line(linewidth = 0.9) +
+    geom_point(size = 2.8) +
+    geom_text(
+      aes(label = sprintf("%.1f%%", share_pct)),
+      vjust = -0.7,
+      size = 4.2
+    ) +
     scale_x_continuous(breaks = 0:23) +
+    scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
     labs(
-      title = "BASt 2023 - zaehlstellen-/tagesnormalisierte Stundenverteilung",
-      subtitle = "Autobahn + Bundesstrasse gemeinsam",
-      x = "Stunde des Tages",
-      y = "Anteil [%]"
+      title = "BASt 2023 - Station/day-normalized hourly distribution",
+      subtitle = "Motorways and federal roads combined",
+      x = "Hour of day",
+      y = "Share [%]"
+    ) +
+    theme_bw(base_size = 16) +
+    theme(
+      plot.title = element_text(size = 18, face = "bold"),
+      plot.subtitle = element_text(size = 15),
+      axis.title = element_text(size = 16),
+      axis.text = element_text(size = 13)
     )
 
   print(p2)
@@ -249,9 +275,9 @@ run_analysis <- function(
   ggsave(
     file.path(out_dir, "bast_2023_hourly_station_day_normalized.png"),
     p2,
-    width = 10,
-    height = 6,
-    dpi = 150
+    width = 12,
+    height = 7,
+    dpi = 300
   )
 
   if (use_9h_start_estimate) {
@@ -260,14 +286,27 @@ run_analysis <- function(
       hourly_start_9h_volume,
       aes(x = hour, y = share_pct)
     ) +
-      geom_line() +
-      geom_point() +
+      geom_line(linewidth = 0.9) +
+      geom_point(size = 2.8) +
+      geom_text(
+        aes(label = sprintf("%.1f%%", share_pct)),
+        vjust = -0.7,
+        size = 4.2
+      ) +
       scale_x_continuous(breaks = 0:23) +
+      scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
       labs(
-        title = "BASt 2023 - Startzeit-Schaetzung mit 9h-Rueckwaertsfenster",
-        subtitle = "Basis: volumengewichtete Stundenverteilung",
-        x = "Geschaetzte Startstunde",
-        y = "Anteil [%]"
+        title = "BASt 2023 - Start-time estimate with 9-hour backward window",
+        subtitle = "Based on the volume-weighted hourly distribution",
+        x = "Estimated start hour",
+        y = "Share [%]"
+      ) +
+      theme_bw(base_size = 16) +
+      theme(
+        plot.title = element_text(size = 18, face = "bold"),
+        plot.subtitle = element_text(size = 15),
+        axis.title = element_text(size = 16),
+        axis.text = element_text(size = 13)
       )
 
     print(p3)
@@ -275,23 +314,36 @@ run_analysis <- function(
     ggsave(
       file.path(out_dir, "bast_2023_hourly_start_9h_volume_weighted.png"),
       p3,
-      width = 10,
-      height = 6,
-      dpi = 150
+      width = 12,
+      height = 7,
+      dpi = 300
     )
 
     p4 <- ggplot(
       hourly_start_9h_station_day,
       aes(x = hour, y = share_pct)
     ) +
-      geom_line() +
-      geom_point() +
+      geom_line(linewidth = 0.9) +
+      geom_point(size = 2.8) +
+      geom_text(
+        aes(label = sprintf("%.1f%%", share_pct)),
+        vjust = -0.7,
+        size = 4.2
+      ) +
       scale_x_continuous(breaks = 0:23) +
+      scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
       labs(
-        title = "BASt 2023 - Startzeit-Schaetzung mit 9h-Rueckwaertsfenster",
-        subtitle = "Basis: zaehlstellen-/tagesnormalisierte Stundenverteilung",
-        x = "Geschaetzte Startstunde",
-        y = "Anteil [%]"
+        title = "BASt 2023 - Start-time estimate with 9-hour backward window",
+        subtitle = "Based on the station/day-normalized hourly distribution",
+        x = "Estimated start hour",
+        y = "Share [%]"
+      ) +
+      theme_bw(base_size = 16) +
+      theme(
+        plot.title = element_text(size = 18, face = "bold"),
+        plot.subtitle = element_text(size = 15),
+        axis.title = element_text(size = 16),
+        axis.text = element_text(size = 13)
       )
 
     print(p4)
@@ -299,9 +351,9 @@ run_analysis <- function(
     ggsave(
       file.path(out_dir, "bast_2023_hourly_start_9h_station_day_normalized.png"),
       p4,
-      width = 10,
-      height = 6,
-      dpi = 150
+      width = 12,
+      height = 7,
+      dpi = 300
     )
   }
 
