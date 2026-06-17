@@ -92,6 +92,14 @@ run_analysis <- function(
     dt <- dt[is.na(Fahrtzw) | Fahrtzw == "w"]
   }
 
+  station_count <- data.table::uniqueN(dt$Zst)
+  station_count_label <- format(station_count, big.mark = ",", scientific = FALSE)
+  station_subtitle <- paste0(
+    "Motorways and federal roads combined; in total ",
+    station_count_label,
+    " counting stations in Germany"
+  )
+
   dt <- make_vehicle_count(dt, vehicle_def)
 
   # ----------------------------------------------------------
@@ -221,7 +229,7 @@ run_analysis <- function(
     scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
     labs(
       title = "BASt 2023 - Volume-weighted hourly distribution",
-      subtitle = "Motorways and federal roads combined",
+      subtitle = station_subtitle,
       x = "Hour of day",
       y = "Share [%]"
     ) +
@@ -258,7 +266,7 @@ run_analysis <- function(
     scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
     labs(
       title = "BASt 2023 - Station/day-normalized hourly distribution",
-      subtitle = "Motorways and federal roads combined",
+      subtitle = station_subtitle,
       x = "Hour of day",
       y = "Share [%]"
     ) +
@@ -297,7 +305,11 @@ run_analysis <- function(
       scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
       labs(
         title = "BASt 2023 - Start-time estimate with 9-hour backward window",
-        subtitle = "Based on the volume-weighted hourly distribution",
+        subtitle = paste(
+          "Based on the volume-weighted hourly distribution; in total",
+          station_count_label,
+          "counting stations in Germany"
+        ),
         x = "Estimated start hour",
         y = "Share [%]"
       ) +
@@ -334,7 +346,11 @@ run_analysis <- function(
       scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
       labs(
         title = "BASt 2023 - Start-time estimate with 9-hour backward window",
-        subtitle = "Based on the station/day-normalized hourly distribution",
+        subtitle = paste(
+          "Based on the station/day-normalized hourly distribution; in total",
+          station_count_label,
+          "counting stations in Germany"
+        ),
         x = "Estimated start hour",
         y = "Share [%]"
       ) +
