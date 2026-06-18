@@ -1,10 +1,11 @@
 package org.matsim.prepare.longDistanceFreightGER;
 
 import org.matsim.api.core.v01.Id;
+import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.*;
-import org.matsim.application.options.LanduseOptions;
+import org.matsim.contrib.common.conventions.vsp.SubpopulationDefaultNames;
 import org.matsim.core.population.PopulationUtils;
 
 import java.io.IOException;
@@ -15,14 +16,12 @@ class FreightAgentGenerator {
     private final DepartureTimeCalculator departureTimeCalculator;
     private final NumOfTripsCalculator numOfTripsCalculator;
     private final PopulationFactory populationFactory;
-    private final Network network;
 
-    public FreightAgentGenerator(Network network, String shpPath, LanduseOptions landUse, double averageLoad, int workingDays, double sample) throws IOException {
-        this.locationCalculator = new DefaultLocationCalculator(network, shpPath, landUse);
+    public FreightAgentGenerator(Network network, String shpPath, String landuseShp, Set<String> landUseTypes, double averageLoad, int workingDays, double sample) throws IOException {
+        this.locationCalculator = new DefaultLocationCalculator(network, shpPath, landuseShp, landUseTypes);
         this.departureTimeCalculator = new DefaultDepartureTimeCalculator();
         this.numOfTripsCalculator = new DefaultNumberOfTripsCalculator(averageLoad, workingDays, sample);
         this.populationFactory = PopulationUtils.getFactory();
-        this.network = network;
     }
 
     public List<Person> generateFreightAgents(TripRelation tripRelation, String tripRelationId) {
@@ -43,18 +42,16 @@ class FreightAgentGenerator {
                 Plan plan = populationFactory.createPlan();
                 double departureTime = departureTimeCalculator.getDepartureTime();
 
-                Id<Link> startLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getOriginCell());
-                Activity startAct = populationFactory.createActivityFromLinkId("freight_start", startLinkId);
-                startAct.setCoord(network.getLinks().get(startLinkId).getToNode().getCoord());
+                Location startLocation = locationCalculator.getLocation(tripRelation.getOriginCell());
+                Activity startAct = createActivity("freight_start", startLocation);
                 startAct.setEndTime(departureTime);
                 plan.addActivity(startAct);
 
                 Leg leg = populationFactory.createLeg("freight");
                 plan.addLeg(leg);
 
-                Id<Link> endLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getOriginCellMainRun());
-                Activity endAct = populationFactory.createActivityFromLinkId("freight_end", endLinkId);
-                endAct.setCoord(network.getLinks().get(endLinkId).getToNode().getCoord());
+                Location endLocation = locationCalculator.getLocation(tripRelation.getOriginCellMainRun());
+                Activity endAct = createActivity("freight_end", endLocation);
                 plan.addActivity(endAct);
 
                 person.addPlan(plan);
@@ -70,18 +67,16 @@ class FreightAgentGenerator {
                 Plan plan = populationFactory.createPlan();
                 double departureTime = departureTimeCalculator.getDepartureTime();
 
-                Id<Link> startLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getOriginCellMainRun());
-                Activity startAct = populationFactory.createActivityFromLinkId("freight_start", startLinkId);
+                Location startLocation = locationCalculator.getLocation(tripRelation.getOriginCellMainRun());
+                Activity startAct = createActivity("freight_start", startLocation);
                 startAct.setEndTime(departureTime);
-                startAct.setCoord(network.getLinks().get(startLinkId).getToNode().getCoord());
                 plan.addActivity(startAct);
 
                 Leg leg = populationFactory.createLeg("freight");
                 plan.addLeg(leg);
 
-                Id<Link> endLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getDestinationCellMainRun());
-                Activity endAct = populationFactory.createActivityFromLinkId("freight_end", endLinkId);
-                endAct.setCoord(network.getLinks().get(endLinkId).getToNode().getCoord());
+                Location endLocation = locationCalculator.getLocation(tripRelation.getDestinationCellMainRun());
+                Activity endAct = createActivity("freight_end", endLocation);
                 plan.addActivity(endAct);
 
                 person.addPlan(plan);
@@ -97,18 +92,16 @@ class FreightAgentGenerator {
                 Plan plan = populationFactory.createPlan();
                 double departureTime = departureTimeCalculator.getDepartureTime();
 
-                Id<Link> startLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getDestinationCellMainRun());
-                Activity startAct = populationFactory.createActivityFromLinkId("freight_start", startLinkId);
-                startAct.setCoord(network.getLinks().get(startLinkId).getToNode().getCoord());
+                Location startLocation = locationCalculator.getLocation(tripRelation.getDestinationCellMainRun());
+                Activity startAct = createActivity("freight_start", startLocation);
                 startAct.setEndTime(departureTime);
                 plan.addActivity(startAct);
 
                 Leg leg = populationFactory.createLeg("freight");
                 plan.addLeg(leg);
 
-                Id<Link> endLinkId = locationCalculator.getLocationOnNetwork(tripRelation.getDestinationCell());
-                Activity endAct = populationFactory.createActivityFromLinkId("freight_end", endLinkId);
-                endAct.setCoord(network.getLinks().get(endLinkId).getToNode().getCoord());
+                Location endLocation = locationCalculator.getLocation(tripRelation.getDestinationCell());
+                Activity endAct = createActivity("freight_end", endLocation);
                 plan.addActivity(endAct);
 
                 person.addPlan(plan);
@@ -120,6 +113,22 @@ class FreightAgentGenerator {
         }
 
         return freightAgents;
+    }
+
+    /**
+     * Creates an activity on the selected link. Routing uses the link id, while the coordinate keeps the sampled
+     * location, e.g. the point inside a matching landuse polygon.
+     */
+    private Activity createActivity(String type, Location location) {
+        Activity activity = populationFactory.createActivityFromLinkId(type, location.linkId());
+        activity.setCoord(location.coord());
+        if (!"network-link".equals(location.source())) {
+            activity.getAttributes().putAttribute("location_source", location.source());
+        }
+        if (location.landuseType() != null) {
+            activity.getAttributes().putAttribute("landuse_type", location.landuseType());
+        }
+        return activity;
     }
 
     // TODO store this attribute names as public static strings
@@ -137,8 +146,15 @@ class FreightAgentGenerator {
         person.getAttributes().putAttribute("tons_per_year", tripRelation.getTonsPerYear());
     }
 
+    /**
+     * Holds the selected routing link, the coordinate written to the activity, and optional provenance information for
+     * debugging landuse-based locations.
+     */
+    public record Location(Id<Link> linkId, Coord coord, String source, String landuseType) {
+    }
+
     public interface LocationCalculator {
-        Id<Link> getLocationOnNetwork(String verkehrszelle);
+        Location getLocation(String verkehrszelle);
     }
 
     public interface DepartureTimeCalculator {
