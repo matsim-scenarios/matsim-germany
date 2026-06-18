@@ -8,7 +8,6 @@ import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.*;
 import org.matsim.application.MATSimAppCommand;
-import org.matsim.application.options.LanduseOptions;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.PopulationUtils;
@@ -83,12 +82,11 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 		// yyyy There are several other places in the package where CRSes are manually set.
 
         log.info("preparing freight agent generator...");
-//		LanduseOptions landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", Set.of("industrial", "commercial", "retail"));
-		LanduseOptions landuse = null;
+		String landuseShp = null;
 		if (!landUseTypes.isEmpty()){
-			landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", landUseTypes);
+			landuseShp = output.toString() + "/landuse-shp/landuse.shp";
 		}
-        FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuse, averageTruckLoad, workingDays, (double) pct / 100);
+        FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuseShp, landUseTypes, averageTruckLoad, workingDays, (double) pct / 100);
         log.info("Freight agent generator successfully created!");
 
         log.info("Reading trip relations...");
