@@ -20,6 +20,7 @@ import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.core.utils.collections.Tuple;
 import org.matsim.core.utils.geometry.CoordUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
+import org.matsim.pt.transitSchedule.TransitRouteStopImpl;
 import org.matsim.pt.transitSchedule.TransitScheduleFactoryImpl;
 import org.matsim.pt.transitSchedule.api.*;
 import org.matsim.vehicles.MatsimVehicleWriter;
@@ -60,6 +61,10 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 
 	@CommandLine.Option(names = "--default-passenger-capacity", description = "Passenger capacity for all planes (currently no free data for plane capacities available)", required = true)
 	private int defaultPassengerCapacity;
+
+	@CommandLine.Option(names = "--boarding-time", description = "Negative offset of departure in seconds, simulating boarding time. " +
+		"Agents need to arrive at least <boarding-time> seconds before actual departure to enter the flight. Arrival is not changed by this parameter", defaultValue = "1800")
+	private int boarding_time;
 
 	@CommandLine.Option(names = "--network-output", description = "Path to output network", required = true)
 	private String outputNetwork;
@@ -140,11 +145,13 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		// Create the plane-network and add airports into it (without connections)
 		for(var airport : airportSet){
 			addAirportToNetwork(planeScenario.getNetwork(), airport);
-			planeScenario.getTransitSchedule().addStopFacility(scheduleFactory.createTransitStopFacility(
+			TransitStopFacility stopFacility = scheduleFactory.createTransitStopFacility(
 				Id.create(airport.getFirst(), TransitStopFacility.class),
 				CoordUtils.plus(airport.getSecond(), new Coord(2000, 500)),
 				false
-			));
+			);
+			stopFacility.setLinkId(Id.createLinkId(airport.getFirst()));
+			planeScenario.getTransitSchedule().addStopFacility(stopFacility);
 		}
 
 		// Create schedule with given flightInformation
@@ -217,8 +224,16 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 			);
 
 			List<TransitRouteStop> stops = List.of(
-				scheduleFactory.createTransitRouteStop(planeScenario.getTransitSchedule().getFacilities().get(Id.create(flightInformation.ADEP, TransitStopFacility.class)), 0, 0),
-				scheduleFactory.createTransitRouteStop(planeScenario.getTransitSchedule().getFacilities().get(Id.create(flightInformation.ADEP, TransitStopFacility.class)), time, time)
+				(new TransitRouteStopImpl.Builder())
+					.stop(planeScenario.getTransitSchedule().getFacilities().get(Id.create(flightInformation.ADEP, TransitStopFacility.class)))
+					.departureOffset(0)
+					.build(),
+				(new TransitRouteStopImpl.Builder())
+					.stop(planeScenario.getTransitSchedule().getFacilities().get(Id.create(flightInformation.ADES, TransitStopFacility.class)))
+					.arrivalOffset(time + boarding_time)
+					.departureOffset(time + boarding_time)
+					.awaitDepartureTime(true)
+					.build()
 			);
 
 			planeScenario.getTransitSchedule().getTransitLines().get(lineId).addRoute(scheduleFactory.createTransitRoute(routeId, route, stops, "pt"));
@@ -226,7 +241,7 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 			Vehicle plane = VehicleUtils.createVehicle(vehicleId, defaultPlane);
 			plane.getAttributes().putAttribute("airplane", "yes");
 			planeScenario.getTransitVehicles().addVehicle(plane);
-			Departure departure = scheduleFactory.createDeparture(departureId, flightInformation.filedOffBlockTime.toLocalTime().toSecondOfDay());
+			Departure departure = scheduleFactory.createDeparture(departureId, flightInformation.filedOffBlockTime.toLocalTime().toSecondOfDay() - boarding_time);
 			departure.setVehicleId(vehicleId);
 			planeScenario.getTransitSchedule().getTransitLines().get(lineId).getRoutes().get(routeId).addDeparture(departure);
 
@@ -262,7 +277,7 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "runwayInbound"), airportNodes.get(0), airportNodes.get(1), planeNetwork, 1500, 1500, 3600, 1));
 		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "taxiInbound"), airportNodes.get(1), airportNodes.get(2), planeNetwork, 500, 20/3.6, 3600, 1));
 		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst()), airportNodes.get(2), airportNodes.get(3), planeNetwork, 500, 20/3.6, 3600, 1));
-		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "taxiOutbound"), airportNodes.get(3), airportNodes.get(4), planeNetwork, 500, 20/3.6, 3600, 1));
+		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "taxiOutbound"), airportNodes.get(3), airportNodes.get(4), planeNetwork, 500, 500./(90.+boarding_time), 3600, 1));
 		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "runwayOutbound"), airportNodes.get(4), airportNodes.get(5), planeNetwork, 1500, 1500, 3600, 1));
 
 		// Add an attribute to the airport links (makes identification of airports easier)
