@@ -12,8 +12,8 @@
  * after the fact (e.g. the dataset for 12/2023 was released in 01/2026). Datasets are available at
  * the EUROCONTROL ADRR dashboard.</p>
  *
- * <p>The required input files are stored on the VSP SVN server under:
- * {@code shared-svn/projects/matsim-germany/planes}. Please note the README when using the files. <p/>
+ * <p>The required input files are stored on the VSP shared-SVN server under:
+ * {@code /projects/matsim-germany/planes}. Please note the README when using the files. <p/>
  *
  * <h2>Boarding time</h2>
  * <p>{@code CreatePlaneSchedule} accepts a boarding time parameter (in seconds). It is subtracted
