@@ -40,8 +40,7 @@ import java.util.*;
 
 /**
  * Parses EUROCONTROL ADRR flight data and generates a MATSim transit schedule, network, and
- * vehicle file. Also generates a plane network containing airports and connection links, which
- * can be fused with the scenario network using {@link AirportNetworkFuser}.
+ * vehicle file. Also generates a plane network containing airports and connection links.
  *
  * <p>See the package documentation for details on the input dataset and the default-plane
  * vehicle type limitation.</p>
