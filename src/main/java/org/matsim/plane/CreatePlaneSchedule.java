@@ -39,17 +39,14 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /**
- * This class provides a parser for the EUROCONTROL flight data and generates a MATSim schedule. <br/><br/>
+ * Parses EUROCONTROL ADRR flight data and generates a MATSim transit schedule, network, and
+ * vehicle file. Also generates a plane network containing airports and connection links, which
+ * can be fused with the scenario network using {@link AirportNetworkFuser}.
  *
- * The <i>EUROCONTROL Aviation Data Repository for Research</i> (ADRR) datasets are available <a href="https://www.eurocontrol.int/dashboard/aviation-data-research"/>here<a/>.
- * This class only needs the basic <i>Flight</i> dataset. The data is free for Research and development purposes, updated every quarter and includes
- * all flights from a given month two years prior. <i>Example: The currently used dataset for 12/2023 was released in 01/2026.</i> <br/><br/>
- *
- * This class also generates a plane-network, containing airports and connection links which can be later fused with the given scenario network
- * using the {@link AirportNetworkFuser}.
+ * <p>See the package documentation for details on the input dataset and the default-plane
+ * vehicle type limitation.</p>
  */
 public class CreatePlaneSchedule implements MATSimAppCommand {
-	// TODO Vehicle Types are a problem, no free data for ICAO codes available! We are currently just using a defaultPlane
 
 	private static final Logger log = LogManager.getLogger(CreatePlaneSchedule.class);
 
