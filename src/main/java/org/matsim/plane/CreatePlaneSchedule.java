@@ -1,0 +1,287 @@
+package org.matsim.plane;
+
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.matsim.api.core.v01.Coord;
+import org.matsim.api.core.v01.Id;
+import org.matsim.api.core.v01.Scenario;
+import org.matsim.api.core.v01.network.Link;
+import org.matsim.api.core.v01.network.Network;
+import org.matsim.api.core.v01.network.Node;
+import org.matsim.application.MATSimAppCommand;
+import org.matsim.application.options.CrsOptions;
+import org.matsim.core.config.ConfigUtils;
+import org.matsim.core.network.NetworkUtils;
+import org.matsim.core.population.routes.NetworkRoute;
+import org.matsim.core.population.routes.RouteUtils;
+import org.matsim.core.scenario.ScenarioUtils;
+import org.matsim.core.utils.collections.Tuple;
+import org.matsim.core.utils.geometry.CoordUtils;
+import org.matsim.core.utils.geometry.CoordinateTransformation;
+import org.matsim.pt.transitSchedule.TransitRouteStopImpl;
+import org.matsim.pt.transitSchedule.TransitScheduleFactoryImpl;
+import org.matsim.pt.transitSchedule.api.*;
+import org.matsim.vehicles.MatsimVehicleWriter;
+import org.matsim.vehicles.Vehicle;
+import org.matsim.vehicles.VehicleType;
+import org.matsim.vehicles.VehicleUtils;
+import picocli.CommandLine;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+
+/**
+ * Parses EUROCONTROL ADRR flight data and generates a MATSim transit schedule, network, and
+ * vehicle file. Also generates a plane network containing airports and connection links.
+ *
+ * <p>See the package documentation for details on the input dataset and the default-plane
+ * vehicle type limitation.</p>
+ */
+public class CreatePlaneSchedule implements MATSimAppCommand {
+
+	private static final Logger log = LogManager.getLogger(CreatePlaneSchedule.class);
+
+	@CommandLine.Option(names = "--adrr-flight-data", description = "Path to the flights file of the EUROCONTROL ADRR dataset", required = true)
+	private String flightPath;
+
+	@CommandLine.Option(names = "--sample-day", description = "The day to sample from the dataset. Make sure to give a date with no holidays or other unusual events. Format: DD-MM-YYYY", required = true)
+	private String sampleDay;
+
+	@CommandLine.Option(names = "--default-passenger-capacity", description = "Passenger capacity for all planes (currently no free data for plane capacities available)", required = true)
+	private int defaultPassengerCapacity;
+
+	@CommandLine.Option(names = "--boarding-time", description = "Negative offset of departure in seconds, simulating boarding time. " +
+		"Agents need to arrive at least <boarding-time> seconds before actual departure to enter the flight. Arrival is not changed by this parameter", defaultValue = "1800")
+	private int boarding_time;
+
+	@CommandLine.Option(names = "--network-output", description = "Path to output network", required = true)
+	private String outputNetwork;
+
+	@CommandLine.Option(names = "--schedule-output", description = "Path to output schedule", required = true)
+	private String outputSchedule;
+
+	@CommandLine.Option(names = "--vehicle-output", description = "Path to output vehicles", required = true)
+	private String outputVehicles;
+
+	@CommandLine.Mixin
+	private CrsOptions crs = new CrsOptions("EPSG:4326");
+
+	public static void main(String[] args) {
+		new CreatePlaneSchedule().execute(args);
+	}
+
+	@Override
+	public Integer call() {
+		// Read in the Flights CSV
+		Set<Tuple<String, Coord>> airportSet = new HashSet<>();
+		List<FlightInformation> flightInformationList = new LinkedList<>();
+		CoordinateTransformation transformation = crs.getTransformation();
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
+
+		var format = CSVFormat.DEFAULT.builder()
+			.setDelimiter(",")
+			.setSkipHeaderRecord(true)
+			.setHeader()
+			.build();
+
+		try (var reader = Files.newBufferedReader(Path.of(flightPath)); var parser = CSVParser.parse(reader, format)) {
+			for(var record : parser){
+				flightInformationList.add( new FlightInformation(
+					record.get("ECTRL ID"),
+					record.get("ADEP"),
+					record.get("ADES"),
+					LocalDateTime.parse(record.get("FILED OFF BLOCK TIME"), formatter),
+					LocalDateTime.parse(record.get("FILED ARRIVAL TIME"), formatter),
+					Double.parseDouble(record.get("Actual Distance Flown (nm)"))*1852
+				));
+
+				String lonADEP = record.get("ADEP Longitude");
+				String latADEP = record.get("ADEP Latitude");
+				String lonADES = record.get("ADES Longitude");
+				String latADES = record.get("ADES Latitude");
+
+				if(!lonADEP.isEmpty() && !latADEP.isEmpty()){
+					airportSet.add(new Tuple<>(record.get("ADEP"), transformation.transform(new Coord(Double.parseDouble(lonADEP), Double.parseDouble(latADEP)))));
+				} else {
+					log.warn("Skipped ADEP airport {} due to missing coordinates!", record.get("ADEP"));
+				}
+
+				if(!lonADES.isEmpty() && !latADES.isEmpty()) {
+					airportSet.add(new Tuple<>(record.get("ADES"), transformation.transform(new Coord(Double.parseDouble(lonADES), Double.parseDouble(latADES)))));
+				} else {
+					log.warn("Skipped ADES airport {} due to missing coordinates!", record.get("ADES"));
+				}
+			}
+		} catch(IOException e){
+			throw new RuntimeException(e);
+		}
+
+		// Filter to selected day
+		DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+		flightInformationList = flightInformationList.stream().filter(f -> f.filedOffBlockTime.toLocalDate().equals(LocalDate.parse(sampleDay, formatter2))).toList();
+
+		// Prepare Scenario
+		Scenario planeScenario = ScenarioUtils.createScenario(ConfigUtils.createConfig());
+		TransitScheduleFactoryImpl scheduleFactory = new TransitScheduleFactoryImpl();
+
+		// Create a default Plane Type
+		VehicleType defaultPlane = VehicleUtils.createVehicleType(Id.createVehicleTypeId("defaultPlane"), "pt");
+		defaultPlane.getAttributes().putAttribute("airplane", "yes");
+		defaultPlane.getCapacity().setSeats(defaultPassengerCapacity);
+		planeScenario.getTransitVehicles().addVehicleType(defaultPlane);
+
+		// Create the plane-network and add airports into it (without connections)
+		for(var airport : airportSet){
+			addAirportToNetwork(planeScenario.getNetwork(), airport);
+			TransitStopFacility stopFacility = scheduleFactory.createTransitStopFacility(
+				Id.create(airport.getFirst(), TransitStopFacility.class),
+				CoordUtils.plus(airport.getSecond(), new Coord(2000, 500)),
+				false
+			);
+			stopFacility.setLinkId(Id.createLinkId(airport.getFirst()));
+			planeScenario.getTransitSchedule().addStopFacility(stopFacility);
+		}
+
+		// Create schedule with given flightInformation
+		for(var flightInformation : flightInformationList){
+			// Prepare Ids
+			String id = flightInformation.ADEP + "_" + flightInformation.ADES + "_" + flightInformation.id;
+			Id<Link> linkId = Id.createLinkId(id);
+			Id<TransitLine> lineId = Id.create(id, TransitLine.class);
+			Id<TransitRoute> routeId = Id.create(id, TransitRoute.class);
+			Id<Vehicle> vehicleId = Id.create(id, Vehicle.class);
+			Id<Departure> departureId = Id.create(id, Departure.class);
+
+			// Skip if flightInformation can't be added
+			double time = ChronoUnit.SECONDS.between(flightInformation.filedOffBlockTime, flightInformation.filedArrivalTime);
+
+			if(time < 1.){
+				log.warn("Skipped flight (id={}) due to too short flight time (time={})", flightInformation.id, time);
+				continue;
+			}
+
+			if(flightInformation.distance < 1.){
+				log.warn("Skipped flight (id={}) due to too short flight distance (distance={})", flightInformation.id, flightInformation.distance);
+				continue;
+			}
+
+			Node from = planeScenario.getNetwork().getNodes().get(Id.createNodeId(flightInformation.ADEP + "runwayOutbound"));
+			Node to = planeScenario.getNetwork().getNodes().get(Id.createNodeId(flightInformation.ADES + "runwayInbound"));
+
+			if(from == null){
+				log.warn("Skipped flight (id={}) due to missing departure airport ({})", flightInformation.id, flightInformation.ADEP);
+				continue;
+			}
+
+			if(to == null){
+				log.warn("Skipped flight (id={}) due to missing arrival airport ({})", flightInformation.id, flightInformation.ADES);
+				continue;
+			}
+
+			var flightLink = NetworkUtils.createLink(
+				linkId,
+				from,
+				to,
+				planeScenario.getNetwork(),
+				flightInformation.distance,
+				flightInformation.distance / time,
+				3600,
+				1
+			);
+			flightLink.getAttributes().putAttribute("flightConnection", "yes");
+
+			// Add the link for this flight
+			planeScenario.getNetwork().addLink(flightLink);
+
+			// Add the transitLine
+
+			planeScenario.getTransitSchedule().addTransitLine(scheduleFactory.createTransitLine(lineId));
+
+			List<Id<Link>> links = List.of(
+				Id.createLinkId(flightInformation.ADEP + "taxiOutbound"),
+				Id.createLinkId(flightInformation.ADEP + "runwayOutbound"),
+				linkId,
+				Id.createLinkId(flightInformation.ADES + "runwayInbound"),
+				Id.createLinkId(flightInformation.ADES + "taxiInbound")
+			);
+
+			NetworkRoute route = RouteUtils.createLinkNetworkRouteImpl(
+				Id.createLinkId(flightInformation.ADEP),
+				links,
+				Id.createLinkId(flightInformation.ADES)
+			);
+
+			List<TransitRouteStop> stops = List.of(
+				(new TransitRouteStopImpl.Builder())
+					.stop(planeScenario.getTransitSchedule().getFacilities().get(Id.create(flightInformation.ADEP, TransitStopFacility.class)))
+					.departureOffset(0)
+					.build(),
+				(new TransitRouteStopImpl.Builder())
+					.stop(planeScenario.getTransitSchedule().getFacilities().get(Id.create(flightInformation.ADES, TransitStopFacility.class)))
+					.arrivalOffset(time + boarding_time)
+					.departureOffset(time + boarding_time)
+					.awaitDepartureTime(true)
+					.build()
+			);
+
+			planeScenario.getTransitSchedule().getTransitLines().get(lineId).addRoute(scheduleFactory.createTransitRoute(routeId, route, stops, "pt"));
+
+			Vehicle plane = VehicleUtils.createVehicle(vehicleId, defaultPlane);
+			plane.getAttributes().putAttribute("airplane", "yes");
+			planeScenario.getTransitVehicles().addVehicle(plane);
+			Departure departure = scheduleFactory.createDeparture(departureId, flightInformation.filedOffBlockTime.toLocalTime().toSecondOfDay() - boarding_time);
+			departure.setVehicleId(vehicleId);
+			planeScenario.getTransitSchedule().getTransitLines().get(lineId).getRoutes().get(routeId).addDeparture(departure);
+
+			// Add attributes to the schedules
+			planeScenario.getTransitSchedule().getTransitLines().get(lineId).getAttributes().putAttribute("flightConnection", "yes");
+
+		}
+
+		// Print output files
+		NetworkUtils.writeNetwork(planeScenario.getNetwork(), outputNetwork);
+		new MatsimVehicleWriter(planeScenario.getTransitVehicles()).writeFile(outputVehicles);
+		new TransitScheduleWriter(planeScenario.getTransitSchedule()).writeFile(outputSchedule);
+
+		return 0;
+	}
+
+	private void addAirportToNetwork(Network planeNetwork, Tuple<String, Coord> airport){
+		List<Node> airportNodes = new ArrayList<>();
+		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "runwayInbound"), airport.getSecond()));
+		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "taxiInbound"), CoordUtils.plus(airport.getSecond(), new Coord(1500, 0))));
+		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst()), CoordUtils.plus(airport.getSecond(), new Coord(2000, 500))));
+		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "apron"), CoordUtils.plus(airport.getSecond(), new Coord(2000, 1000))));
+		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "taxiOutbound"), CoordUtils.plus(airport.getSecond(), new Coord(1500, 1500))));
+		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "runwayOutbound"), CoordUtils.plus(airport.getSecond(), new Coord(0, 1500))));
+
+		// Add an attribute to the airport nodes (makes identification of airports easier)
+		for(var node : airportNodes){
+			node.getAttributes().putAttribute("airport", airport.getFirst());
+			planeNetwork.addNode(node);
+		}
+
+		List<Link> airportLinks = new ArrayList<>();
+		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "runwayInbound"), airportNodes.get(0), airportNodes.get(1), planeNetwork, 1500, 1500, 3600, 1));
+		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "taxiInbound"), airportNodes.get(1), airportNodes.get(2), planeNetwork, 500, 20/3.6, 3600, 1));
+		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst()), airportNodes.get(2), airportNodes.get(3), planeNetwork, 500, 20/3.6, 3600, 1));
+		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "taxiOutbound"), airportNodes.get(3), airportNodes.get(4), planeNetwork, 500, 500./(90.+boarding_time), 3600, 1));
+		airportLinks.add(NetworkUtils.createLink(Id.createLinkId(airport.getFirst() + "runwayOutbound"), airportNodes.get(4), airportNodes.get(5), planeNetwork, 1500, 1500, 3600, 1));
+
+		// Add an attribute to the airport links (makes identification of airports easier)
+		for (var link : airportLinks){
+			link.getAttributes().putAttribute("airport", airport.getFirst());
+			planeNetwork.addLink(link);
+		}
+	}
+
+	record FlightInformation(String id, String ADEP, String ADES, LocalDateTime filedOffBlockTime, LocalDateTime filedArrivalTime, double distance){}
+}
