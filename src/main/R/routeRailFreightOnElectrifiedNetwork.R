@@ -11,9 +11,38 @@ relations_from_point_astarlandmarks <- relations_orig_astarlandmarks %>% mutate(
 negative_detour_astarlandmarks <- relations_from_point_astarlandmarks %>%
   filter(detour_electrified_km < 0)'
 
-# relations_orig <- read.csv("~/git/shared-svn/projects/matsim-germany/zerocuts2/dijkstra/railfreight_electrified_route_analysis.csv")
+# for comparison
+relations_orig_useasis <- read.csv("~/git/shared-svn/projects/matsim-germany/zerocuts2/NetworkOutsideGermanyHandlingUSE_AS_IS/railfreight_electrified_route_analysis.csv")
+#relations_orig <- read.csv("~/git/shared-svn/projects/matsim-germany/zerocuts2/dijkstra/railfreight_electrified_route_analysis.csv")
 
-relations_orig <- read.csv("~/git/shared-svn/projects/matsim-germany/zerocuts2/railfreight_routes_1pct_GermanOD_in_Germany_km_in_Germany_NetworkOutsideGermanyHandlingUSE_ELECTRIFIED_NETWORK_ONLY/railfreight_electrified_route_analysis.csv")
+relations_useasis <- relations_orig_useasis %>% 
+  mutate(origin_cell_main_run_in_germany = as.logical(origin_cell_main_run_in_germany), 
+         destination_cell_main_run_in_germany = as.logical(destination_cell_main_run_in_germany),
+         detour_electrified_km = length_electrified_km - length_non_electrified_km,
+         detour_electrified_incl_proposed_km = length_electrified_incl_proposed_km - length_non_electrified_km,
+         detour_electrified_km_Germany = length_electrified_km_Germany - length_non_electrified_km_Germany,
+         detour_electrified_incl_proposed_km_Germany = length_electrified_incl_proposed_km_Germany - length_non_electrified_km_Germany) %>% 
+  mutate(tkm_shortest_route = tons_year * length_non_electrified_km,
+         detour_electrified_tkm = detour_electrified_km * tons_year,
+         tkm_shortest_route_Germany = tons_year * length_non_electrified_km_Germany,
+         detour_electrified_tkm_Germany = detour_electrified_km_Germany * tons_year,)
+summary_all_useasis <- relations_useasis %>% 
+  summarise(number_relations = n(),
+            sum_tons_year = sum(tons_year),
+            sum_tkm_shortest_route = sum(tkm_shortest_route),
+            sum_tkm_detour = sum(detour_electrified_km * tons_year),
+            length_access_km_mean = mean(length_access_km),
+            length_egress_km_mean = mean(length_egress_km),
+            length_non_electrified_km_mean = mean(length_non_electrified_km),
+            detour_electrified_km_mean = mean(detour_electrified_km),
+            detour_electrified_incl_proposed_km_mean = mean(detour_electrified_incl_proposed_km),
+            detour_electrified_tkm_mean = mean(detour_electrified_tkm),
+            length_non_electrified_km_Germany_mean = mean(length_non_electrified_km_Germany),
+            detour_electrified_km_Germany_mean = mean(detour_electrified_km_Germany),
+            detour_electrified_incl_proposed_Germany_km_mean = mean(detour_electrified_incl_proposed_km_Germany),
+            detour_electrified_tkm_Germany_mean = mean(detour_electrified_tkm_Germany))
+
+relations_orig <- read.csv("~/git/shared-svn/projects/matsim-germany/zerocuts2/NetworkOutsideGermanyHandlingUSE_ELECTRIFIED_NETWORK_ONLY/railfreight_electrified_route_analysis.csv")
 # boolean access in Germany, egress in Germany. In Mittelwert nur das Ende in Deutschland berücksichtigen
 # umwegfaktor
 # freight-rail_routes-on-electrified-network-analysis_1kmh.csv
@@ -22,9 +51,17 @@ relations <- relations_orig %>%
   mutate(origin_cell_main_run_in_germany = as.logical(origin_cell_main_run_in_germany), 
          destination_cell_main_run_in_germany = as.logical(destination_cell_main_run_in_germany),
          detour_electrified_km = length_electrified_km - length_non_electrified_km,
-         detour_electrified_incl_proposed_km = length_electrified_incl_proposed_km - length_non_electrified_km) %>% 
+         detour_electrified_incl_proposed_km = length_electrified_incl_proposed_km - length_non_electrified_km,
+         detour_electrified_km_Germany = length_electrified_km_Germany - length_non_electrified_km_Germany,
+         detour_electrified_incl_proposed_km_Germany = length_electrified_incl_proposed_km_Germany - length_non_electrified_km_Germany) %>% 
   mutate(tkm_shortest_route = tons_year * length_non_electrified_km,
-        detour_electrified_tkm = detour_electrified_km * tons_year)
+        detour_electrified_tkm = detour_electrified_km * tons_year,
+        tkm_shortest_route_Germany = tons_year * length_non_electrified_km_Germany,
+        detour_electrified_tkm_Germany = detour_electrified_km_Germany * tons_year,)
+
+View(relations %>% filter(detour_electrified_km > 10))
+View(relations %>% filter(detour_electrified_km > detour_electrified_km_Germany + 0.1))
+View(relations %>% filter(detour_electrified_km + 0.1 < detour_electrified_km_Germany))
 
 relations_from_point <- relations %>% 
   st_as_sf(coords = c("fromX","fromY"), crs = 25832)
@@ -39,9 +76,13 @@ negative_detour <- relations_from_point %>%
 #negative_detour_astarlandmarks
 
 # Check plausibility of goods flows on map
-relations %>% summarise(tkm_shortest_route_sum = sum(tkm_shortest_route))
+relations %>% 
+  summarise(tkm_shortest_route_sum = sum(tkm_shortest_route),
+            tkm_shortest_route_Germany_sum = sum(tkm_shortest_route_Germany),
+            tons_year_sum = sum(tons_year))
+
 relations %>% filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
-  summarise(tkm_shortest_route_sum = sum(tkm_shortest_route))
+  summarise(tkm_shortest_route_sum = sum(tkm_shortest_route), tons_year_sum = sum(tons_year))
 
 tmap_mode("view")
 relations_from_aggr <- relations_from_point %>% 
@@ -68,7 +109,7 @@ tm_shape(relations_to_aggr %>% filter(origin_cell_main_run_in_germany & destinat
 
 # average detours
 summary_all_germany <- relations %>% 
-#  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
+  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
   summarise(number_relations = n(),
             sum_tons_year = sum(tons_year),
             sum_tkm_shortest_route = sum(tkm_shortest_route),
@@ -79,6 +120,22 @@ summary_all_germany <- relations %>%
             detour_electrified_km_mean = mean(detour_electrified_km),
     detour_electrified_incl_proposed_km_mean = mean(detour_electrified_incl_proposed_km),
     detour_electrified_tkm_mean = mean(detour_electrified_tkm))
+
+summary_all <- relations %>% 
+  summarise(number_relations = n(),
+            sum_tons_year = sum(tons_year),
+            sum_tkm_shortest_route = sum(tkm_shortest_route),
+            sum_tkm_detour = sum(detour_electrified_km * tons_year),
+            length_access_km_mean = mean(length_access_km),
+            length_egress_km_mean = mean(length_egress_km),
+            length_non_electrified_km_mean = mean(length_non_electrified_km),
+            detour_electrified_km_mean = mean(detour_electrified_km),
+            detour_electrified_incl_proposed_km_mean = mean(detour_electrified_incl_proposed_km),
+            detour_electrified_tkm_mean = mean(detour_electrified_tkm),
+            length_non_electrified_km_Germany_mean = mean(length_non_electrified_km_Germany),
+            detour_electrified_km_Germany_mean = mean(detour_electrified_km_Germany),
+            detour_electrified_incl_proposed_Germany_km_mean = mean(detour_electrified_incl_proposed_km_Germany),
+            detour_electrified_tkm_Germany_mean = mean(detour_electrified_tkm_Germany))
 
 summary_electrified_longer_germany <- relations %>% 
   filter(detour_electrified_km > 0.001) %>% 
@@ -92,11 +149,15 @@ summary_electrified_longer_germany <- relations %>%
             length_non_electrified_km_mean = mean(length_non_electrified_km),
             detour_electrified_km_mean = mean(detour_electrified_km),
             detour_electrified_incl_proposed_km_mean = mean(detour_electrified_incl_proposed_km),
-            detour_electrified_tkm_mean = mean(detour_electrified_tkm))
+            detour_electrified_tkm_mean = mean(detour_electrified_tkm),
+            length_non_electrified_km_Germany_mean = mean(length_non_electrified_km_Germany),
+            detour_electrified_km_Germany_mean = mean(detour_electrified_km_Germany),
+            detour_electrified_incl_proposed_Germany_km_mean = mean(detour_electrified_incl_proposed_km_Germany),
+            detour_electrified_tkm_Germany_mean = mean(detour_electrified_tkm_Germany))
 
 summary_electrified1km_longer_germany <- relations %>% 
   filter(detour_electrified_km > 1) %>% 
-  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
+#  filter(origin_cell_main_run_in_germany & destination_cell_main_run_in_germany) %>% 
   summarise(number_relations = n(),
             sum_tons_year = sum(tons_year),
             sum_tkm_shortest_route = sum(tkm_shortest_route),
@@ -106,7 +167,11 @@ summary_electrified1km_longer_germany <- relations %>%
             length_non_electrified_km_mean = mean(length_non_electrified_km),
             detour_electrified_km_mean = mean(detour_electrified_km),
             detour_electrified_incl_proposed_km_mean = mean(detour_electrified_incl_proposed_km),
-            detour_electrified_tkm_mean = mean(detour_electrified_tkm))
+            detour_electrified_tkm_mean = mean(detour_electrified_tkm),
+            length_non_electrified_km_Germany_mean = mean(length_non_electrified_km_Germany),
+            detour_electrified_km_Germany_mean = mean(detour_electrified_km_Germany),
+            detour_electrified_incl_proposed_Germany_km_mean = mean(detour_electrified_incl_proposed_km_Germany),
+            detour_electrified_tkm_Germany_mean = mean(detour_electrified_tkm_Germany))
 
 summary_electrified10km_longer_germany <- relations %>% 
   filter(detour_electrified_km > 10) %>% 
@@ -120,7 +185,11 @@ summary_electrified10km_longer_germany <- relations %>%
             length_non_electrified_km_mean = mean(length_non_electrified_km),
             detour_electrified_km_mean = mean(detour_electrified_km),
             detour_electrified_incl_proposed_km_mean = mean(detour_electrified_incl_proposed_km),
-            detour_electrified_tkm_mean = mean(detour_electrified_tkm))
+            detour_electrified_tkm_mean = mean(detour_electrified_tkm),
+            length_non_electrified_km_Germany_mean = mean(length_non_electrified_km_Germany),
+            detour_electrified_km_Germany_mean = mean(detour_electrified_km_Germany),
+            detour_electrified_incl_proposed_Germany_km_mean = mean(detour_electrified_incl_proposed_km_Germany),
+            detour_electrified_tkm_Germany_mean = mean(detour_electrified_tkm_Germany))
 
 summary_electrified50km_longer_germany <- relations %>% 
   filter(detour_electrified_km > 50) %>% 
@@ -134,7 +203,11 @@ summary_electrified50km_longer_germany <- relations %>%
             length_non_electrified_km_mean = mean(length_non_electrified_km),
             detour_electrified_km_mean = mean(detour_electrified_km),
             detour_electrified_incl_proposed_km_mean = mean(detour_electrified_incl_proposed_km),
-            detour_electrified_tkm_mean = mean(detour_electrified_tkm))
+            detour_electrified_tkm_mean = mean(detour_electrified_tkm),
+            length_non_electrified_km_Germany_mean = mean(length_non_electrified_km_Germany),
+            detour_electrified_km_Germany_mean = mean(detour_electrified_km_Germany),
+            detour_electrified_incl_proposed_Germany_km_mean = mean(detour_electrified_incl_proposed_km_Germany),
+            detour_electrified_tkm_Germany_mean = mean(detour_electrified_tkm_Germany))
 
 # umweg detour_ton_km betrachten und deren quantile und daran durchhangeln
 quantiles_detour_electrified_tkm <- relations_from_point %>% 

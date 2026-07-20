@@ -50,6 +50,7 @@ import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.network.algorithms.MultimodalNetworkCleaner;
 import org.matsim.core.network.filter.NetworkFilterManager;
 import org.matsim.core.population.routes.NetworkRoute;
+import org.matsim.core.population.routes.RouteUtils;
 import org.matsim.core.router.TripRouter;
 import org.matsim.core.router.TripStructureUtils;
 import org.matsim.core.scenario.MutableScenario;
@@ -57,6 +58,7 @@ import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.core.utils.geometry.geotools.MGC;
 import org.matsim.core.utils.gis.GeoFileReader;
 import org.matsim.core.utils.io.IOUtils;
+import org.matsim.core.utils.misc.OptionalTime;
 import org.matsim.facilities.ActivityFacilities;
 import org.matsim.facilities.ActivityFacility;
 import org.matsim.facilities.FacilitiesUtils;
@@ -87,7 +89,8 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 	private Path inputFreightPlans;
 
 	@CommandLine.Option(names = "--germanyShp", description = "germany boundaries shp for filtering.",
-		defaultValue = "../shared-svn/projects/matsim-germany/shp/germany-area.shp")
+//		defaultValue = "../shared-svn/projects/matsim-germany/shp/germany-area.shp")
+		defaultValue = "../shared-svn/projects/matsim-germany/zerocuts2/shp/germany-railway-borders.shp")
 	private Path germanyShp;
 
 	enum NetworkOutsideGermanyHandling {
@@ -100,6 +103,10 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 	@CommandLine.Option(names = "--outputDirectory", description = "output csv file", required = true,
 		defaultValue = "../shared-svn/projects/matsim-germany/zerocuts2/railfreight_routes")
 	private Path output;
+
+	enum TypeOfTraffic {
+		insideGermany, enteringGermany, exitingGermany, transitingGermany
+	}
 
 	private com.google.inject.Injector injector;
 	private TripRouter tripRouter;
@@ -232,6 +239,18 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 			throw new RuntimeException(e);
 		}
 
+		// tag all border crossing links
+		List<Geometry> germanyBoundaries = germanyGeometries.stream().map(geom -> geom.getBoundary()).collect(Collectors.toList());
+		Set<Id<Link>> borderCrossings = new HashSet<>();
+		for (Link link: scenario.getNetwork().getLinks().values()) {
+			boolean fromNodeInGermany = germanyGeometries.stream().anyMatch(geometry -> geometry.contains(MGC.coord2Point(link.getFromNode().getCoord())));
+			boolean toNodeInGermany = germanyGeometries.stream().anyMatch(geometry -> geometry.contains(MGC.coord2Point(link.getToNode().getCoord())));
+			if ((fromNodeInGermany & !toNodeInGermany) || (!fromNodeInGermany & toNodeInGermany)) {
+				link.getAttributes().putAttribute("borderCrossing", "DE/*");
+				borderCrossings.add(link.getId());
+			}
+		}
+
 		if (networkOutsideGermanyHandling == NetworkOutsideGermanyHandling.USE_ELECTRIFIED_NETWORK_ONLY) {
 			NetworkFilterManager filterGermanyAndElectrifiedEurope = new NetworkFilterManager(scenario.getNetwork(), new NetworkConfigGroup());
 			filterGermanyAndElectrifiedEurope.addLinkFilter(l -> {
@@ -297,6 +316,11 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		});
 		Network electrifiedRailwayNetworkEuropeOutsideGermany = filterElectrifiedEuropeOutsideGermany.applyFilters();
 
+		// test
+		NetworkUtils.writeNetwork(scenario.getNetwork(), "../shared-svn/projects/matsim-germany/zerocuts2/railfreight_routes/network_border_attributes.xml.gz");
+		NetworkUtils.writeNetwork(railwayNetworkGermany, "../shared-svn/projects/matsim-germany/zerocuts2/railfreight_routes/network_germany.xml.gz");
+
+
 		CSVPrinter printer = null;
 		try {printer = new CSVPrinter(IOUtils.getBufferedWriter(output.resolve("railfreight_electrified_route_analysis.csv").toString()),
 			CSVFormat.Builder.create()
@@ -306,6 +330,9 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		} catch (IOException e) {
 			log.error(e);
 		}
+
+		// cache to speed up
+		Map<Id<Link>, Map<Id<Link>, Relation>> cachedRelations = new HashMap<>();
 
 		int counterAll = 0;
 		int counterRailTrips = 0;
@@ -340,24 +367,32 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 			Facility originFacility = FacilitiesUtils.wrapActivity(trip.getOriginActivity());
 			Facility destinationFacility = FacilitiesUtils.wrapActivity(trip.getDestinationActivity());
 
+			// look up cached relations
+			Map<Id<Link>, Relation> cachedRelationsFromLink = cachedRelations.get(originFacility.getLinkId());
+			Relation relation = null;
+			if (cachedRelationsFromLink == null) {
+				// initialize map
+				cachedRelations.put(originFacility.getLinkId(), new HashMap<>());
+			} else {
+				relation = cachedRelationsFromLink.get(destinationFacility.getLinkId());
+			}
+			if (relation == null) {
+					// process relation
+					relation = processRelation(originFacility, destinationFacility, person, trip, borderCrossings, scenario.getNetwork());
+			}
+
 			Person electrifiedRoutePerson = scenario.getPopulation().getPersons().get(Id.createPersonId(person.getId().toString() + "_electrified"));
 			Person electrifiedInclProposedRoutePerson = scenario.getPopulation().getPersons().get(Id.createPersonId(person.getId().toString() + "_electrifiedInclProposed"));
 
-			List<PlanElement> routeNonElectrified = (List<PlanElement>) tripRouter.calcRoute(
-				OsmTags.RAIL, originFacility, destinationFacility, 0.0d, person, trip.getTripAttributes());
+			List<PlanElement> routeNonElectrified = relation.routeNonElectrified;
 			Leg accessLeg = (Leg) routeNonElectrified.get(0);
 			Leg egressLeg = (Leg) routeNonElectrified.get(4);
 			Leg nonElectrifiedLeg = (Leg) routeNonElectrified.get(2);
-			List<PlanElement> routeElectrified = (List<PlanElement>) tripRouter.calcRoute(
-				CreateNetworkFromOSM.RAIL_ELECTRIFIED, originFacility, destinationFacility, 0.0d, electrifiedRoutePerson, trip.getTripAttributes());
+			List<PlanElement> routeElectrified = relation.routeElectrified;
 			Leg electrifiedLeg = (Leg) routeElectrified.get(2);
-			List<PlanElement> routeElectrifiedInclProposed = (List<PlanElement>) tripRouter.calcRoute(
-				CreateNetworkFromOSM.RAIL_ELECTRIFIED_INCL_PROPOSED, originFacility, destinationFacility, 0.0d, electrifiedInclProposedRoutePerson, trip.getTripAttributes());
+			List<PlanElement> routeElectrifiedInclProposed = relation.routeElectrifiedInclProposed;
 			Leg electrifiedInclProposedLeg = (Leg) routeElectrifiedInclProposed.get(2);
 
-			// mode railway occurs in input survey data only on main run
-			boolean originCellMainRunInGermany = cellInGermany((String) person.getAttributes().getAttribute("origin_cell_main_run"));
-			boolean destinationCellMainRunInGermany = cellInGermany((String) person.getAttributes().getAttribute("destination_cell_main_run"));
 			double tonsPerYear = (double) person.getAttributes().getAttribute("tons_per_year");
 
 			PopulationFactory factory = scenario.getPopulation().getFactory();
@@ -394,8 +429,8 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 				printer.print(person.getAttributes().getAttribute("origin_cell_main_run"));
 				printer.print(person.getAttributes().getAttribute("destination_cell_main_run"));
 				printer.print(person.getAttributes().getAttribute("final_destination_cell"));
-				printer.print(originCellMainRunInGermany);
-				printer.print(destinationCellMainRunInGermany);
+				printer.print(relation.typeOfTraffic == TypeOfTraffic.insideGermany || relation.typeOfTraffic == TypeOfTraffic.exitingGermany);
+				printer.print(relation.typeOfTraffic == TypeOfTraffic.insideGermany || relation.typeOfTraffic == TypeOfTraffic.enteringGermany);
 				printer.print(person.getAttributes().getAttribute("goods_type"));
 				printer.print(person.getAttributes().getAttribute("tons_per_year"));
 				printer.print(person.getId().toString());
@@ -503,7 +538,7 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		return length;
 	}
 
-	private static double getLinkLengthIfInGermany(Network railwayNetworkGermany, Id<Link> linkId) {
+	private double getLinkLengthIfInGermany(Network railwayNetworkGermany, Id<Link> linkId) {
 		Link link = railwayNetworkGermany.getLinks().get(linkId);
 		// if link exists in filtered network it is located in Germany and we want to add its length
 		if (link != null) {
@@ -511,5 +546,182 @@ public class RouteRailFreightOnElectrifiedNetwork implements MATSimAppCommand {
 		} else {
 			return 0.0;
 		}
+	}
+
+	private double routeLength(NetworkRoute networkRoute, Network railwayNetworkGermany) {
+		// similar to NetworkRoutingInclAccessEgressModule:451 return length 0 if start==end on network
+		if (networkRoute.getStartLinkId().equals(networkRoute.getEndLinkId())) {
+			return 0.0;
+		}
+		double length = 0.0;
+		for (Id<Link> linkId : networkRoute.getLinkIds()) {
+			length = length + railwayNetworkGermany.getLinks().get(linkId).getLength();
+		}
+		// similar to NetworkRoutingInclAccessEgressModule:441 ignore length of the start link
+		length = length + railwayNetworkGermany.getLinks().get(networkRoute.getEndLinkId()).getLength();
+		return length;
+	}
+
+	// TODO: try to ensure this uses no really Person-dependent data, only those saved in the Person but identical for the Relation
+	private Relation processRelation (Facility originFacility, Facility destinationFacility, Person person, TripStructureUtils.Trip trip,
+									  Set<Id<Link>> borderCrossings, Network network) {
+		// mode railway occurs in input survey data only on main run
+		boolean originCellMainRunInGermany = cellInGermany((String) person.getAttributes().getAttribute("origin_cell_main_run"));
+		boolean destinationCellMainRunInGermany = cellInGermany((String) person.getAttributes().getAttribute("destination_cell_main_run"));
+
+
+		// TODO: there can be electrified trips via foreign countries shorter than entirely inside Germany. E.g. Saarbruecken-Offenburg via France.
+		// Therefore pick first entering into Germany and last exiting out of Germany and enforce routing inside Germany in between by filtering network.
+		// This can be justified by the hurdles in crossing the border (locomotive certification and electricity supply, organisational)
+		// Since Basel - Schaffhausen - Lindau is not fully electrified yet, maybe Basel Bad. is not a real problem. Maybe extend Germany shape to include all DB Netz/InfraGO areas.
+		// OSM Tag operator is not sufficiently tagged. Big areas with "" inside Germany. Many different DB* attributes.
+
+		TypeOfTraffic typeOfTraffic;
+		if (originCellMainRunInGermany && destinationCellMainRunInGermany) {
+			typeOfTraffic = TypeOfTraffic.insideGermany;
+		} else if (!originCellMainRunInGermany && destinationCellMainRunInGermany) {
+			typeOfTraffic = TypeOfTraffic.enteringGermany;
+		} else if (originCellMainRunInGermany && !destinationCellMainRunInGermany) {
+			typeOfTraffic = TypeOfTraffic.exitingGermany;
+		} else {
+			typeOfTraffic = TypeOfTraffic.transitingGermany;
+		}
+
+		Id<Link> originOrBorderToGermanyLink = originFacility.getLinkId();
+		Id<Link> destinationOrBorderFromGermanyLink = destinationFacility.getLinkId();
+		Facility originOrBorderToGermanyFacility = originFacility;
+		Facility destinationOrBorderFromGermanyFacility = destinationFacility;
+		// save subroute outside Germany
+		NetworkRoute routeEnteringGermany = null;
+		NetworkRoute routeExitingGermany = null;
+		List<PlanElement> tripCrossBorder = null;
+
+		// cut traffic at border
+		if (!originCellMainRunInGermany || !destinationCellMainRunInGermany) {
+			tripCrossBorder = (List<PlanElement>) tripRouter.calcRoute(CreateNetworkFromOSM.RAIL_ELECTRIFIED, originFacility,
+				destinationFacility, 0.0d, person, trip.getTripAttributes());
+
+			NetworkRoute crossBorderRoute = (NetworkRoute) ((Leg) tripCrossBorder.get(2)).getRoute();
+			List<Id<Link>> borderCrossingsInRoute = crossBorderRoute.getLinkIds().stream().
+				filter(link -> borderCrossings.contains(link)).toList();
+			switch (typeOfTraffic) {
+				case enteringGermany :
+//					Verify.verify(borderCrossingsInRoute.size() == 1);
+					if (borderCrossingsInRoute.size() > 1) log.warn("borderCrossings:" + borderCrossingsInRoute.size() + " instead of 1");
+					originOrBorderToGermanyLink = borderCrossingsInRoute.getFirst();
+					originOrBorderToGermanyFacility = FacilitiesUtils.wrapLink(network.getLinks().get(originOrBorderToGermanyLink));
+					routeEnteringGermany = crossBorderRoute.getSubRoute(originFacility.getLinkId(), originOrBorderToGermanyLink);
+					break;
+				case exitingGermany :
+//					Verify.verify(borderCrossingsInRoute.size() == 1);
+					if (borderCrossingsInRoute.size() > 1) log.warn("borderCrossings:" + borderCrossingsInRoute.size() + " instead of 1");
+					destinationOrBorderFromGermanyLink = borderCrossingsInRoute.getFirst();
+					destinationOrBorderFromGermanyFacility = FacilitiesUtils.wrapLink(network.getLinks().get(destinationOrBorderFromGermanyLink));
+					routeExitingGermany = crossBorderRoute.getSubRoute(destinationOrBorderFromGermanyLink, destinationFacility.getLinkId());
+					break;
+				case transitingGermany :
+//					Verify.verify(borderCrossingsInRoute.size() == 2);
+					if (borderCrossingsInRoute.size() != 2) {
+						log.warn("borderCrossings:" + borderCrossingsInRoute.size() + " instead of 2 for person " + person.getId().toString() +
+							" from link " + originFacility.getLinkId() + " to link " + destinationFacility.getLinkId() +
+							" via border crossing links" +
+							borderCrossingsInRoute.stream().map(id -> id.toString()).collect(Collectors.joining(",")));
+					}
+					originOrBorderToGermanyLink = borderCrossingsInRoute.getFirst();
+					originOrBorderToGermanyFacility = FacilitiesUtils.wrapLink(network.getLinks().get(originOrBorderToGermanyLink));
+					destinationOrBorderFromGermanyLink = borderCrossingsInRoute.getLast();
+					destinationOrBorderFromGermanyFacility = FacilitiesUtils.wrapLink(network.getLinks().get(destinationOrBorderFromGermanyLink));
+					routeEnteringGermany = crossBorderRoute.getSubRoute(originFacility.getLinkId(), originOrBorderToGermanyLink);
+					routeExitingGermany = crossBorderRoute.getSubRoute(destinationOrBorderFromGermanyLink, destinationFacility.getLinkId());
+					break;
+				default: new RuntimeException("Should not happen.");
+			}
+		}
+
+
+
+		List<PlanElement> routeNonElectrified = (List<PlanElement>) tripRouter.calcRoute(
+			OsmTags.RAIL, originOrBorderToGermanyFacility, destinationFacility, 0.0d, person, trip.getTripAttributes());
+		Leg nonElectrifiedLeg = (Leg) routeNonElectrified.get(2);
+		List<PlanElement> routeElectrified = (List<PlanElement>) tripRouter.calcRoute(
+			CreateNetworkFromOSM.RAIL_ELECTRIFIED, originFacility, destinationFacility, 0.0d, person, trip.getTripAttributes());
+		Leg electrifiedLeg = (Leg) routeElectrified.get(2);
+		List<PlanElement> routeElectrifiedInclProposed = (List<PlanElement>) tripRouter.calcRoute(
+			CreateNetworkFromOSM.RAIL_ELECTRIFIED_INCL_PROPOSED, originFacility, destinationFacility, 0.0d, person, trip.getTripAttributes());
+		Leg electrifiedInclProposedLeg = (Leg) routeElectrifiedInclProposed.get(2);
+
+
+		// add route parts outside Germany
+		if (!originCellMainRunInGermany || !destinationCellMainRunInGermany) {
+			List<List<PlanElement>> tripsToBeExtendedBeyondBorder = List.of(routeNonElectrified, routeElectrified, routeElectrifiedInclProposed);
+			for (List<PlanElement> tripToBeExtendedBeyondBorder : tripsToBeExtendedBeyondBorder) {
+				List<Id<Link>> mergedLinkIds = new ArrayList<>();
+				// Routing from a link causes the trip to start without any access walk and instead directly with the railway leg
+				// So no need to remove a walk leg and interaction activity
+				if (routeEnteringGermany != null) {
+					int positionRailwayLeg = -1;
+					if (tripToBeExtendedBeyondBorder.size() == 5) {
+						positionRailwayLeg = 0;
+						tripToBeExtendedBeyondBorder.remove(0); // remove walk leg at border
+						tripToBeExtendedBeyondBorder.remove(0); // remove interaction activity at border
+					} else if (tripToBeExtendedBeyondBorder.size() == 3) {
+						positionRailwayLeg = 0;
+					} else {
+						new RuntimeException("unexpected number of PlanElements received from router. Aborting.");
+					}
+					// merge NetworkRoute
+					Leg legToBeExtendedBeyondBorder = (Leg) tripToBeExtendedBeyondBorder.get(positionRailwayLeg);
+					Leg legCrossBorder = (Leg) tripCrossBorder.get(2);
+					NetworkRoute routeToBeExtendedBeyondBorder = (NetworkRoute) legToBeExtendedBeyondBorder.getRoute();
+					NetworkRoute routeOutsideBorder = ((NetworkRoute) legCrossBorder.getRoute()).
+						getSubRoute(originFacility.getLinkId(), originOrBorderToGermanyLink);
+					mergedLinkIds.addAll(routeOutsideBorder.getLinkIds());
+					// getLinkIds() excludes the start and end link, so we need to re-add
+					mergedLinkIds.add(originOrBorderToGermanyLink);
+					mergedLinkIds.addAll(routeToBeExtendedBeyondBorder.getLinkIds());
+
+					tripToBeExtendedBeyondBorder.add(0, tripCrossBorder.get(0)); // add walk leg outside Germany
+					tripToBeExtendedBeyondBorder.add(1, tripCrossBorder.get(1)); // add interaction activity outside Germany
+				}
+				if (routeExitingGermany != null) {
+					if (tripToBeExtendedBeyondBorder.size() == 5) {
+						tripToBeExtendedBeyondBorder.remove(4); // remove walk leg at border
+						tripToBeExtendedBeyondBorder.remove(3); // remove interaction activity at border
+					} else if (tripToBeExtendedBeyondBorder.size() != 3) {
+						// Routing to a link can cause the trip to end without any egress walk and instead directly with the railway leg
+						// So no need to remove a walk leg and interaction activity
+						// But that means 3 PlanElements and here we have something else.
+						new RuntimeException("unexpected number of PlanElements received from router. Aborting.");
+					}
+					// merge NetworkRoute
+					Leg legToBeExtendedBeyondBorder = (Leg) tripToBeExtendedBeyondBorder.get(2);
+					Leg legCrossBorder = (Leg) tripCrossBorder.get(2);
+					NetworkRoute routeToBeExtendedBeyondBorder = (NetworkRoute) legToBeExtendedBeyondBorder.getRoute();
+					NetworkRoute routeOutsideBorder = ((NetworkRoute) legCrossBorder.getRoute()).
+						getSubRoute(destinationOrBorderFromGermanyLink, destinationFacility.getLinkId());
+					mergedLinkIds.addAll(routeOutsideBorder.getLinkIds());
+					// getLinkIds() excludes the start and end link, so we need to re-add
+					mergedLinkIds.add(originOrBorderToGermanyLink);
+					mergedLinkIds.addAll(routeToBeExtendedBeyondBorder.getLinkIds());
+
+					tripToBeExtendedBeyondBorder.add(3, tripCrossBorder.get(3)); // add interaction activity outside Germany
+					tripToBeExtendedBeyondBorder.add(4, tripCrossBorder.get(4)); // add walk leg outside Germany
+				}
+				// LinkNetworkRouteImpl.getSubRoute() does not set distance, travel time and cost. So we have to re-calculate
+				NetworkRoute mergedRoute = RouteUtils.createLinkNetworkRouteImpl(originFacility.getLinkId(), destinationFacility.getLinkId());
+				mergedRoute.setLinkIds(originFacility.getLinkId(), mergedLinkIds, destinationFacility.getLinkId());
+				mergedRoute.setDistance(routeLength(mergedRoute, network));
+			}
+		}
+
+		return new Relation(originFacility.getLinkId(), destinationFacility.getLinkId(), typeOfTraffic, originOrBorderToGermanyLink,
+			destinationOrBorderFromGermanyLink, routeNonElectrified, routeElectrified, routeElectrifiedInclProposed);
+	}
+
+	// We cannot use Facility as identifier, so instead use Id<Link> of the facility's link
+	private record Relation (Id<Link> originOfRelation, Id<Link> destinationOfRelation, TypeOfTraffic typeOfTraffic,
+							 Id<Link> originOrBorderLinkToGermany, Id<Link> desrinationOrBorderLinkFromGermany,
+							 List<PlanElement> routeNonElectrified, List<PlanElement> routeElectrified,
+							 List<PlanElement> routeElectrifiedInclProposed) {
 	}
 }
