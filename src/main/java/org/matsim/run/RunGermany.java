@@ -21,6 +21,7 @@
 
 package org.matsim.run;
 
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -119,22 +120,23 @@ public class RunGermany {
 
 //	private static final String runid = "ChangeTripMode_Secondary";
 
-	public static void main(String[] args) {
+	/** Load and combine the inputs for simulation or choice-set routing. */
+	public static Scenario prepareScenario(String... args) {
 
-		String inputDir = args[0];
+		Path inputDir = Path.of(args[0]);
 		String[] typedArgs = Arrays.copyOfRange(args, 1, args.length);
-		Config config = ConfigUtils.loadConfig(inputDir + "germanyConfig.xml");
+		Config config = ConfigUtils.loadConfig(inputDir.resolve("germanyConfig.xml").toString());
 
 		config.controller().setLastIteration(100);
 		config.controller().setOverwriteFileSetting(OverwriteFileSetting.failIfDirectoryExists);
-		config.controller().setOutputDirectory(inputDir + "/Output");
+		config.controller().setOutputDirectory(inputDir.resolve("Output").toString());
 //		config.controler().setRunId(runid);
 
 		config.global().setCoordinateSystem("EPSG:31467");
 		config.global().setNumberOfThreads(noOfThreads);
 
 		Collection<String> networkModes = new HashSet<>();
-		networkModes.add("car");
+		networkModes.add(TransportMode.car);
 		config.routing().setNetworkModes(networkModes);
 
 //		we are only scoring trips
@@ -175,7 +177,7 @@ public class RunGermany {
 		stratSetsChangeTripMode.setWeight(0.05);
 
 		String[] changeModes = new String[2];
-		changeModes[0] = "car";
+		changeModes[0] = TransportMode.car;
 		changeModes[1] = "longDistancePt";
 		config.changeMode().setModes(changeModes);
 
@@ -232,7 +234,7 @@ public class RunGermany {
 		srrConfig.setUseIntermodalAccessEgress(true);
 
 		IntermodalAccessEgressParameterSet intermodalAccessEgressParameterSetAirportWithCar = new IntermodalAccessEgressParameterSet();
-		intermodalAccessEgressParameterSetAirportWithCar.setMode("car");
+		intermodalAccessEgressParameterSetAirportWithCar.setMode(TransportMode.car);
 		intermodalAccessEgressParameterSetAirportWithCar.setMaxRadius(200000.);
 		intermodalAccessEgressParameterSetAirportWithCar.setInitialSearchRadius(50000.);
 		intermodalAccessEgressParameterSetAirportWithCar.setSearchExtensionRadius(50000.);
@@ -277,7 +279,7 @@ public class RunGermany {
 //		srrConfig.addIntermodalAccessEgress(intermodalAccessEgressParameterSetLocalPublicTransportWithCar);
 
 		IntermodalAccessEgressParameterSet intermodalAccessEgressParameterSetWalk = new IntermodalAccessEgressParameterSet();
-		intermodalAccessEgressParameterSetWalk.setMode("walk");
+		intermodalAccessEgressParameterSetWalk.setMode(TransportMode.walk);
 		intermodalAccessEgressParameterSetWalk.setMaxRadius(5000.);
 		intermodalAccessEgressParameterSetWalk.setInitialSearchRadius(1000.);
 		intermodalAccessEgressParameterSetWalk.setSearchExtensionRadius(1000.);
@@ -372,21 +374,27 @@ public class RunGermany {
 //		mergeSchedules(scenario.getTransitSchedule(), trainScenario_2030.getTransitSchedule());
 //		mergeVehicles(scenario.getTransitVehicles(), trainScenario_2030.getTransitVehicles());
 
-		Network airplaneNetwork = NetworkUtils.readNetwork(inputDir + inputNetworkPlane);
+		Network airplaneNetwork = NetworkUtils.readNetwork(inputDir.resolve(inputNetworkPlane).toString());
 		Set<String> airplaneModes = new HashSet<>();
 		airplaneModes.add(TransportMode.airplane);
 		airplaneNetwork.getLinks().values().forEach(l -> l.setAllowedModes(airplaneModes));
 		MergeNetworks.merge(scenario.getNetwork(), "", airplaneNetwork);
 
 		Config airplaneConfig = ConfigUtils.createConfig();
-		airplaneConfig.transit().setTransitScheduleFile(inputDir + inputSchedulePlane);
-		airplaneConfig.transit().setVehiclesFile(inputDir + inputVehiclesPlane);
+		airplaneConfig.transit().setTransitScheduleFile(inputDir.resolve(inputSchedulePlane).toString());
+		airplaneConfig.transit().setVehiclesFile(inputDir.resolve(inputVehiclesPlane).toString());
 		Scenario airplaneScenario = ScenarioUtils.loadScenario(airplaneConfig);
 		airplaneScenario.getTransitSchedule().getTransitLines().values().forEach(line -> line.getRoutes().values().forEach(route -> route.setTransportMode(TransportMode.airplane)));
 		airplaneScenario.getTransitSchedule().getFacilities().values().forEach(stop -> stop.getAttributes().putAttribute("type", "airport"));
 		mergeSchedules(scenario.getTransitSchedule(), airplaneScenario.getTransitSchedule());
 		mergeVehicles(scenario.getTransitVehicles(), airplaneScenario.getTransitVehicles());
+		return scenario;
+	}
 
+	public static void main(String[] args) {
+		Path inputDir = Path.of(args[0]);
+		Scenario scenario = prepareScenario(args);
+		Config config = scenario.getConfig();
 		Controler controller = new Controler(scenario);
 		controller.addOverridingModule(new SwissRailRaptorModule());
 
@@ -402,11 +410,11 @@ public class RunGermany {
 
 		controller.addOverridingModule(new SimWrapperModule());
 
-		ConfigUtils.writeConfig(scenario.getConfig(), inputDir + "configGermany.xml");
+		ConfigUtils.writeConfig(config, inputDir.resolve("configGermany.xml").toString());
 
-		NetworkUtils.writeNetwork(scenario.getNetwork(), inputDir + "GermanyNetwork.xml");
-		new MatsimVehicleWriter(scenario.getTransitVehicles()).writeFile(inputDir + "GermanyTransitVehicles.xml");
-		new TransitScheduleWriter(scenario.getTransitSchedule()).writeFile(inputDir + "GermanyTransitSchedule.xml");
+		NetworkUtils.writeNetwork(scenario.getNetwork(), inputDir.resolve("GermanyNetwork.xml").toString());
+		new MatsimVehicleWriter(scenario.getTransitVehicles()).writeFile(inputDir.resolve("GermanyTransitVehicles.xml").toString());
+		new TransitScheduleWriter(scenario.getTransitSchedule()).writeFile(inputDir.resolve("GermanyTransitSchedule.xml").toString());
 
 		controller.run();
 

@@ -164,7 +164,8 @@ public class CreateDemand {
 					String mode = null;
 					String nextActType = null;
 
-					int noOfAgentsPerDay = (int) Math.round(Integer.parseInt((record.get(csvColumn))) / 365.0);
+					int annualTrips = Integer.parseInt(record.get(csvColumn));
+					int noOfAgentsPerDay = (int) Math.round(annualTrips / 365.0);
 
 //                    double rest = noOfAgentsDouble - noOfAgentsPerDay;
 //
@@ -206,7 +207,7 @@ public class CreateDemand {
 //					if ((originZone.equals("DE300") || originZone.equals("DE40A") || originZone.equals("DE405") || originZone.equals("DE409") || originZone.equals("DE40C") || originZone.equals("DE406") || originZone.equals("DE40H") || originZone.equals("DE40E") || originZone.equals("DE404") || originZone.equals("DE408"))  && (destinationZone.equals("DEA23") || destinationZone.equals("DEA27") || destinationZone.equals("DEA1D") || destinationZone.equals("DEA1C") || destinationZone.equals("DEA24") || destinationZone.equals("DEA2B") || destinationZone.equals("DEA2C"))) {
 
 //					if ((originZone.equals("DE300") || originZone.equals("DE40A") || originZone.equals("DE405") || originZone.equals("DE409") || originZone.equals("DE40C") || originZone.equals("DE406") || originZone.equals("DE40H") || originZone.equals("DE40E") || originZone.equals("DE404") || originZone.equals("DE408"))  && (destinationZone.equals("DE212") || destinationZone.equals("DE21H") || destinationZone.equals("DE21L") || destinationZone.equals("DE21C") || destinationZone.equals("DE217"))) {
-						createPersons(sample, originZone, destinationZone, noOfAgentsPerDay, mode, nextActType);
+						createPersons(sample, originZone, destinationZone, noOfAgentsPerDay, mode, nextActType, csvColumn, annualTrips);
 					}
 
 				}
@@ -220,7 +221,8 @@ public class CreateDemand {
 	}
 
 
-	private static void createPersons(double sample, String originZone, String destinationZone, int noOfAgentsPerDay, String mode, String nextActType) {
+	private static void createPersons(double sample, String originZone, String destinationZone, int noOfAgentsPerDay,
+			String mode, String nextActType, String sourceColumn, int annualTrips) {
 
 
 //			log.warn("Creating persons: " + oGeometry + " --- " + dGeometry + " --- " + noOfAgents + " --- " + mode + " --- " + nextActType);
@@ -228,19 +230,21 @@ public class CreateDemand {
 			for (int ii = 0; ii < noOfAgentsPerDay; ii++) {
 //				sample size
 				if (random.nextDouble() < sample)
-					createPerson(originZone, destinationZone, mode, nextActType);
+					createPerson(originZone, destinationZone, mode, nextActType, sourceColumn, annualTrips, sample);
 			}
 		}
 
 	}
 
-	private static void createPerson(String originZone, String destinationZone, String mode, String nextActType) {
+	private static void createPerson(String originZone, String destinationZone, String mode, String nextActType,
+			String sourceColumn, int annualTrips, double sample) {
 
 		PopulationFactory populationFactory = population.getFactory();
 		int index = population.getPersons().size();
 		Id<Person> id = Id.createPersonId(originZone + "---" + destinationZone + "---" + mode + "---" + index);
 		Person person = populationFactory.createPerson(id);
 		PopulationUtils.putSubpopulation(person, "personGermanyModel");
+		addSourceAttributes(person, originZone, destinationZone, sourceColumn, annualTrips, sample);
 		population.addPerson(person);
 
 		Plan plan = populationFactory.createPlan();
@@ -261,6 +265,19 @@ public class CreateDemand {
 //		ToDo: Tagesgang
 //		destinationAct.setStartTime(12. * 3600);
 		plan.addActivity(destinationAct);
+	}
+
+	/** Preserve the source cell before Bahn and Luft are both mapped to longDistancePt. */
+	static void addSourceAttributes(Person person, String originZone, String destinationZone,
+			String sourceColumn, int annualTrips, double sample) {
+		var attributes = person.getAttributes();
+		attributes.putAttribute("vp.originZone", originZone);
+		attributes.putAttribute("vp.destinationZone", destinationZone);
+		attributes.putAttribute("vp.sourceMode", sourceColumn.split("_")[0]);
+		attributes.putAttribute("vp.purposeCode", sourceColumn.split("_")[1]);
+		attributes.putAttribute("vp.sourceColumn", sourceColumn);
+		attributes.putAttribute("vp.annualTrips", annualTrips);
+		attributes.putAttribute("vp.sample", sample);
 	}
 
 	private static int createTripStartTime(String nextActType) {
