@@ -8,11 +8,11 @@ import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.population.*;
 import org.matsim.application.MATSimAppCommand;
-import org.matsim.application.options.LanduseOptions;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.PopulationUtils;
 import org.matsim.core.scenario.ProjectionUtils;
+import org.matsim.core.utils.misc.Counter;
 import picocli.CommandLine;
 
 import java.io.FileWriter;
@@ -82,12 +82,11 @@ public class GenerateFreightPlans implements MATSimAppCommand {
 		// yyyy There are several other places in the package where CRSes are manually set.
 
         log.info("preparing freight agent generator...");
-//		LanduseOptions landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", Set.of("industrial", "commercial", "retail"));
-		LanduseOptions landuse = null;
+		String landuseShp = null;
 		if (!landUseTypes.isEmpty()){
-			landuse = new LanduseOptions(output.toString() + "/landuse-shp/landuse.shp", landUseTypes);
+			landuseShp = output.toString() + "/landuse-shp/landuse.shp";
 		}
-        FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuse, averageTruckLoad, workingDays, (double) pct / 100);
+        FreightAgentGenerator freightAgentGenerator = new FreightAgentGenerator(network, shpPath, landuseShp, landUseTypes, averageTruckLoad, workingDays, (double) pct / 100);
         log.info("Freight agent generator successfully created!");
 
         log.info("Reading trip relations...");
@@ -98,16 +97,14 @@ public class GenerateFreightPlans implements MATSimAppCommand {
         Population outputPopulation = PopulationUtils.createPopulation(ConfigUtils.createConfig());
 
 		ProjectionUtils.putCRS( outputPopulation, targetCRS );
+		Counter counter = new Counter("Precessed entries # ", " of " + tripRelations.size() + " trip relations");
 
         for (int i = 0; i < tripRelations.size(); i++) {
             List<Person> persons = freightAgentGenerator.generateFreightAgents(tripRelations.get(i), Integer.toString(i));
             for (Person person : persons) {
                 outputPopulation.addPerson(person);
             }
-
-            if (i % 500000 == 0) {
-				log.info("Processing: {} out of {} entries have been processed", i, tripRelations.size());
-            }
+			counter.incCounter();
         }
         String outputPlansPath = output.toString() + "/german_freight." + pct + "pct.plans.xml.gz";
         PopulationWriter populationWriter = new PopulationWriter(outputPopulation);
