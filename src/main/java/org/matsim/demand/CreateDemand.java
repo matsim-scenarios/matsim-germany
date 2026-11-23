@@ -172,6 +172,7 @@ public class CreateDemand {
 					int noOfAgentsPerDay = (int) Math.round(Integer.parseInt((record.get(csvColumn))) / 365.0);
 
 					String[] splitColumn = csvColumn.split("_");
+					String sourceMode = splitColumn[0];
 
 					mode = switch (sourceMode) {
 						case "Bahn" -> "longDistancePt";
@@ -194,12 +195,7 @@ public class CreateDemand {
 					};
 
 					if (!originZone.equals(destinationZone)) {
-//					agents travelling from Berlin to Munich + Umland
-//					if(originZone.equals("DE300") && destinationZone.equals("DEA23")) {
-//					if ((originZone.equals("DE300") || originZone.equals("DE40A") || originZone.equals("DE405") || originZone.equals("DE409") || originZone.equals("DE40C") || originZone.equals("DE406") || originZone.equals("DE40H") || originZone.equals("DE40E") || originZone.equals("DE404") || originZone.equals("DE408"))  && (destinationZone.equals("DEA23") || destinationZone.equals("DEA27") || destinationZone.equals("DEA1D") || destinationZone.equals("DEA1C") || destinationZone.equals("DEA24") || destinationZone.equals("DEA2B") || destinationZone.equals("DEA2C"))) {
-
-//					if ((originZone.equals("DE300") || originZone.equals("DE40A") || originZone.equals("DE405") || originZone.equals("DE409") || originZone.equals("DE40C") || originZone.equals("DE406") || originZone.equals("DE40H") || originZone.equals("DE40E") || originZone.equals("DE404") || originZone.equals("DE408"))  && (destinationZone.equals("DE212") || destinationZone.equals("DE21H") || destinationZone.equals("DE21L") || destinationZone.equals("DE21C") || destinationZone.equals("DE217"))) {
-						createPersons(sample, originZone, destinationZone, noOfAgentsPerDay, mode, nextActType);
+						createPersons(sample, originZone, destinationZone, noOfAgentsPerDay, mode, sourceMode, nextActType);
 					}
 
 				}
@@ -214,25 +210,26 @@ public class CreateDemand {
 	}
 
 
-	private static void createPersons(double sample, String originZone, String destinationZone, int noOfAgentsPerDay, String mode, String nextActType) {
+	private static void createPersons(double sample, String originZone, String destinationZone, int noOfAgentsPerDay, String mode, String sourceMode, String nextActType) {
 
 		if (regions.containsKey(originZone) && regions.containsKey(destinationZone)) {
 			for (int ii = 0; ii < noOfAgentsPerDay; ii++) {
 //				sample size
 				if (random.nextDouble() < sample)
-					createPerson(originZone, destinationZone, mode, nextActType);
+					createPerson(originZone, destinationZone, mode, sourceMode, nextActType);
 			}
 		}
 
 	}
 
-	private static void createPerson(String originZone, String destinationZone, String mode, String nextActType) {
+	private static void createPerson(String originZone, String destinationZone, String mode, String sourceMode, String nextActType) {
 
 		PopulationFactory populationFactory = population.getFactory();
 		int index = population.getPersons().size();
 		Id<Person> id = Id.createPersonId(originZone + "---" + destinationZone + "---" + mode + "---" + index);
 		Person person = populationFactory.createPerson(id);
 		PopulationUtils.putSubpopulation(person, "personGermanyModel");
+		person.getAttributes().putAttribute("source_mode", sourceMode);
 		population.addPerson(person);
 
 		Plan plan = populationFactory.createPlan();
