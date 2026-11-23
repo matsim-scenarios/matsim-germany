@@ -101,7 +101,7 @@ public class CreateDemand {
 		weightedGeometriesPerZones.forEach((thisZone, geometryPairs) -> landcoverPerZone.put(thisZone, new EnumeratedDistribution<>(geometryPairs)));
 		String demandInput = "../shared-svn/studies/countries/de/prognose_2030/PVMatrix_BVWP15_A2010/SM_PVMatrix_BVWP15_A2010.csv";
 		// read the bvwp csv file
-		try (CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader().setSkipHeaderRecord(true).build().parse(IOUtils.getBufferedReader(demandInput))) {
+		try (CSVParser parser = CSVFormat.Builder.create(CSVFormat.DEFAULT).setDelimiter(';').setHeader().setSkipHeaderRecord(true).get().parse(IOUtils.getBufferedReader(demandInput))) {
 
 			// this will iterate over every line in the csv except the first one which contains the column headers
 			for (CSVRecord record : parser) {
@@ -166,30 +166,18 @@ public class CreateDemand {
 				}
 
 				for (String csvColumn : csvColumns) {
-					String mode = null;
-					String nextActType = null;
+					String mode;
+					String nextActType;
 
 					int noOfAgentsPerDay = (int) Math.round(Integer.parseInt((record.get(csvColumn))) / 365.0);
 
-//                    double rest = noOfAgentsDouble - noOfAgentsPerDay;
-//
-//                    if (rest > random.nextDouble()) {
-//                        noOfAgentsPerDay++;
-//                    }
-
 					String[] splitColumn = csvColumn.split("_");
 
-					mode = switch (splitColumn[0]) {
-						case "Bahn" ->
-//						mode = TransportMode.train;
-							"longDistancePt";
+					mode = switch (sourceMode) {
+						case "Bahn" -> "longDistancePt";
 						case "MIV" -> TransportMode.car;
-						case "Luft" ->
-//						mode = TransportMode.airplane;
-							"longDistancePt";
-						case "OESPV" ->
-//						mode = TransportMode.pt;
-							"longDistancePt";
+						case "Luft" -> "longDistancePt";
+						case "OESPV" -> "longDistancePt";
 						case "Rad" -> TransportMode.bike;
 						case "Fuss" -> TransportMode.walk;
 						default -> throw new IllegalStateException("Unexpected value in column 0: " + splitColumn[0]);
@@ -228,8 +216,6 @@ public class CreateDemand {
 
 	private static void createPersons(double sample, String originZone, String destinationZone, int noOfAgentsPerDay, String mode, String nextActType) {
 
-
-//			log.warn("Creating persons: " + oGeometry + " --- " + dGeometry + " --- " + noOfAgents + " --- " + mode + " --- " + nextActType);
 		if (regions.containsKey(originZone) && regions.containsKey(destinationZone)) {
 			for (int ii = 0; ii < noOfAgentsPerDay; ii++) {
 //				sample size
@@ -265,7 +251,6 @@ public class CreateDemand {
 		Coord destinationCoord = getCoordInGeometry(destinationZone);
 		Activity destinationAct = populationFactory.createActivityFromCoord(nextActType, destinationCoord);
 //		ToDo: Tagesgang
-//		destinationAct.setStartTime(12. * 3600);
 		plan.addActivity(destinationAct);
 	}
 
