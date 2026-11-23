@@ -69,9 +69,9 @@ public class CreateDemand {
 	private static Population population;
 	private static CoordinateTransformation coordinateTransformation;
 
-	private static final Random random = new Random(100);
+	private static final Random random = new Random(4711);
+	private static final Random coordinateRandom = new Random(4711);
 	private static final TripStartTimeCalculator tripStartTimeCalculator = new DefaultTripStartTimeCalculator(random);
-//	private static final Random random = MatsimRandom.getLocalInstance();
 
 	public static Population create(String outputPopulationFile, String outputCrs, double sample, boolean train, boolean car, boolean airplane, boolean pt, boolean bike, boolean walk) throws MalformedURLException {
 		Configurator.setLevel("org.matsim.core.utils.geometry.geotools.MGC", Level.ERROR);
