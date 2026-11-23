@@ -91,6 +91,9 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		// Read in the Flights CSV
 		Set<Tuple<String, Coord>> airportSet = new HashSet<>();
 		List<FlightInformation> flightInformationList = new LinkedList<>();
+		if (crs.getTargetCRS() == null) {
+			throw new IllegalArgumentException("Target CRS must be specified. Please use the ----target-crs option");
+		}
 		CoordinateTransformation transformation = crs.getTransformation();
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
 		DateTimeFormatter sampleDayFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
