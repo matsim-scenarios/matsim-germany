@@ -86,6 +86,10 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		List<FlightInformation> flightInformationList = new LinkedList<>();
 		CoordinateTransformation transformation = crs.getTransformation();
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
+		DateTimeFormatter sampleDayFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+		LocalDate selectedDay = LocalDate.parse(sampleDay, sampleDayFormatter);
+		ShpOptions.Index departureAreaIndex = createAreaIndex(departureArea);
+		ShpOptions.Index destinationAreaIndex = createAreaIndex(destinationArea);
 
 		var format = CSVFormat.DEFAULT.builder()
 			.setDelimiter(",")
@@ -95,6 +99,22 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 
 		try (var reader = Files.newBufferedReader(Path.of(flightPath)); var parser = CSVParser.parse(reader, format)) {
 			for(var record : parser){
+				LocalDateTime filedOffBlockTime = LocalDateTime.parse(record.get("FILED OFF BLOCK TIME"), formatter);
+				if (!filedOffBlockTime.toLocalDate().equals(selectedDay)) {
+					continue;
+				}
+
+				String lonADEP = record.get("ADEP Longitude");
+				String latADEP = record.get("ADEP Latitude");
+				String lonADES = record.get("ADES Longitude");
+				String latADES = record.get("ADES Latitude");
+				Coord adepCoord = parseCoordinate(lonADEP, latADEP);
+				Coord adesCoord = parseCoordinate(lonADES, latADES);
+
+				if (isInsideArea(departureAreaIndex, adepCoord) || isInsideArea(destinationAreaIndex, adesCoord)) {
+					continue;
+				}
+
 				flightInformationList.add( new FlightInformation(
 					record.get("ECTRL ID"),
 					record.get("ADEP"),
@@ -104,19 +124,14 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 					Double.parseDouble(record.get("Actual Distance Flown (nm)"))*1852
 				));
 
-				String lonADEP = record.get("ADEP Longitude");
-				String latADEP = record.get("ADEP Latitude");
-				String lonADES = record.get("ADES Longitude");
-				String latADES = record.get("ADES Latitude");
-
-				if(!lonADEP.isEmpty() && !latADEP.isEmpty()){
-					airportSet.add(new Tuple<>(record.get("ADEP"), transformation.transform(new Coord(Double.parseDouble(lonADEP), Double.parseDouble(latADEP)))));
+				if(adepCoord != null){
+					airportSet.add(new Tuple<>(record.get("ADEP"), transformation.transform(adepCoord)));
 				} else {
 					log.warn("Skipped ADEP airport {} due to missing coordinates!", record.get("ADEP"));
 				}
 
-				if(!lonADES.isEmpty() && !latADES.isEmpty()) {
-					airportSet.add(new Tuple<>(record.get("ADES"), transformation.transform(new Coord(Double.parseDouble(lonADES), Double.parseDouble(latADES)))));
+				if(adesCoord != null) {
+					airportSet.add(new Tuple<>(record.get("ADES"), transformation.transform(adesCoord)));
 				} else {
 					log.warn("Skipped ADES airport {} due to missing coordinates!", record.get("ADES"));
 				}
@@ -124,10 +139,7 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		} catch(IOException e){
 			throw new RuntimeException(e);
 		}
-
-		// Filter to selected day
-		DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("dd-MM-yyyy");
-		flightInformationList = flightInformationList.stream().filter(f -> f.filedOffBlockTime.toLocalDate().equals(LocalDate.parse(sampleDay, formatter2))).toList();
+		log.info("Selected {} flights and {} airports for {}", flightInformationList.size(), airportSet.size(), selectedDay);
 
 		// Prepare Scenario
 		Scenario planeScenario = ScenarioUtils.createScenario(ConfigUtils.createConfig());
@@ -262,6 +274,26 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		new TransitScheduleWriter(planeScenario.getTransitSchedule()).writeFile(outputDir.resolve("outputSchedule.xml.gz").toString());
 
 		return 0;
+	}
+
+	private ShpOptions.Index createAreaIndex(String area) {
+		if (area == null || area.isBlank() || area.equalsIgnoreCase("none")) {
+			return null;
+		}
+
+		return new ShpOptions(area, null, StandardCharsets.UTF_8).createIndex("EPSG:4326", null);
+	}
+
+	private boolean isInsideArea(ShpOptions.Index areaIndex, Coord coord) {
+		return areaIndex != null && (coord == null || !areaIndex.contains(coord));
+	}
+
+	private Coord parseCoordinate(String longitude, String latitude) {
+		if (longitude.isBlank() || latitude.isBlank()) {
+			return null;
+		}
+
+		return new Coord(Double.parseDouble(longitude), Double.parseDouble(latitude));
 	}
 
 	private void addAirportToNetwork(Network planeNetwork, Tuple<String, Coord> airport){
