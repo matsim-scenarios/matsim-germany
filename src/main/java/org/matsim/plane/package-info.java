@@ -42,6 +42,10 @@
  * allows the SwissRailRaptor intermodal stop finder to identify them. The generated files can
  * therefore be routed directly without rewriting their modes while merging them into a scenario.</p>
  *
+ * <p>Before writing, the aircraft network is reduced to the links referenced by transit routes and
+ * stop facilities in the generated schedule. Unreferenced links and orphaned nodes are removed,
+ * while the transit schedule itself remains unchanged.</p>
+ *
  * <h2>Geographic filtering</h2>
  * <p>Flights can be filtered independently by departure and destination using the
  * {@code --departure-area} and {@code --destination-area} arguments. Each argument accepts a

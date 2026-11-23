@@ -306,6 +306,7 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		// Print output files
 		ProjectionUtils.putCRS(planeScenario.getNetwork(), crs.getTargetCRS());
 		ProjectionUtils.putCRS(planeScenario.getTransitSchedule(), crs.getTargetCRS());
+		filterNetworkToSchedule(planeScenario.getNetwork(), planeScenario.getTransitSchedule());
 		if (!Files.exists(outputDir)) {
 			try {
 				Files.createDirectories(outputDir);
@@ -318,6 +319,56 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		new TransitScheduleWriter(planeScenario.getTransitSchedule()).writeFile(outputDir.resolve("outputSchedule.xml.gz").toString());
 
 		return 0;
+	}
+
+	/**
+	 * Removes links and nodes that are not referenced by the transit schedule while leaving the
+	 * schedule itself unchanged. Stop-facility links are retained even when a facility is currently
+	 * not used by a route, so every {@code linkRefId} in the schedule remains valid.
+	 */
+	private void filterNetworkToSchedule(Network network, TransitSchedule schedule) {
+		Set<Id<Link>> requiredLinkIds = new HashSet<>();
+		for (TransitStopFacility facility : schedule.getFacilities().values()) {
+			if (facility.getLinkId() != null) {
+				requiredLinkIds.add(facility.getLinkId());
+			}
+		}
+
+		for (TransitLine line : schedule.getTransitLines().values()) {
+			for (TransitRoute transitRoute : line.getRoutes().values()) {
+				NetworkRoute networkRoute = transitRoute.getRoute();
+				if (networkRoute == null) {
+					throw new IllegalStateException("Transit route " + transitRoute.getId() + " has no network route");
+				}
+				requiredLinkIds.add(Objects.requireNonNull(networkRoute.getStartLinkId(),
+					"Missing start link for transit route " + transitRoute.getId()));
+				requiredLinkIds.addAll(networkRoute.getLinkIds());
+				requiredLinkIds.add(Objects.requireNonNull(networkRoute.getEndLinkId(),
+					"Missing end link for transit route " + transitRoute.getId()));
+			}
+		}
+
+		Set<Id<Link>> missingLinkIds = new TreeSet<>(Comparator.comparing(Id::toString));
+		missingLinkIds.addAll(requiredLinkIds);
+		missingLinkIds.removeAll(network.getLinks().keySet());
+		if (!missingLinkIds.isEmpty()) {
+			throw new IllegalStateException("Transit schedule references missing network links: " + missingLinkIds);
+		}
+
+		int linksBefore = network.getLinks().size();
+		int nodesBefore = network.getNodes().size();
+		network.getLinks().keySet().stream()
+			.filter(linkId -> !requiredLinkIds.contains(linkId))
+			.toList()
+			.forEach(network::removeLink);
+		network.getNodes().values().stream()
+			.filter(node -> node.getInLinks().isEmpty() && node.getOutLinks().isEmpty())
+			.map(Node::getId)
+			.toList()
+			.forEach(network::removeNode);
+
+		log.info("Filtered plane network to schedule references: {} -> {} links, {} -> {} nodes",
+			linksBefore, network.getLinks().size(), nodesBefore, network.getNodes().size());
 	}
 
 	private VehicleType createPlaneType(String aircraftType, Double maximumObservedBlockVelocity) {
