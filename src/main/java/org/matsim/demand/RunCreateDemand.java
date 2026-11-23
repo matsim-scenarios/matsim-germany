@@ -23,8 +23,6 @@ package org.matsim.demand;
 
 import java.net.MalformedURLException;
 
-import org.matsim.api.core.v01.population.Population;
-
 /**
  * @author smueller
  */
@@ -33,17 +31,17 @@ public class RunCreateDemand {
 
 	public static void main(String[] args) {
 
-		boolean train = false;
+		boolean train = true;
 		boolean car = true;
-		boolean airplane = false;
-		boolean pt = false;
-		boolean bike = false;
-		boolean walk = false;
+		boolean airplane = true;
+		boolean pt = true;
+		boolean bike = true;
+		boolean walk = true;
 
 		double sample = 0.001;
 		String outputCrs = CreateDemand.DEFAULT_OUTPUT_CRS;
 
-		String outputPopulationFile = "output/onlyCar" + getSampleNameOfOutputFolder(sample) + "pct.xml.gz";
+		String outputPopulationFile = "output/plans" + getSampleNameOfOutputFolder(sample) + "pct.xml.gz";
 
 		try {
 			CreateDemand.create(outputPopulationFile, outputCrs, sample, train, car, airplane, pt, bike, walk);
