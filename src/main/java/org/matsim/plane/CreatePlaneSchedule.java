@@ -123,9 +123,11 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 					record.get("ECTRL ID"),
 					record.get("ADEP"),
 					record.get("ADES"),
-					LocalDateTime.parse(record.get("FILED OFF BLOCK TIME"), formatter),
+					filedOffBlockTime,
 					LocalDateTime.parse(record.get("FILED ARRIVAL TIME"), formatter),
-					Double.parseDouble(record.get("Actual Distance Flown (nm)"))*1852
+					Double.parseDouble(record.get("Actual Distance Flown (nm)"))*1852,
+					normalizeCode(record.get("AC Type"), "UNKNOWN"),
+					normalizeCode(record.get("AC Operator"), "ZZZ")
 				));
 
 				if(adepCoord != null){
@@ -149,11 +151,26 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		Scenario planeScenario = ScenarioUtils.createScenario(ConfigUtils.createConfig());
 		TransitScheduleFactoryImpl scheduleFactory = new TransitScheduleFactoryImpl();
 
-		// Create a default Plane Type
-		VehicleType defaultPlane = VehicleUtils.createVehicleType(Id.createVehicleTypeId("defaultPlane"), "pt");
-		defaultPlane.getAttributes().putAttribute("airplane", "yes");
-		defaultPlane.getCapacity().setSeats(defaultPassengerCapacity);
-		planeScenario.getTransitVehicles().addVehicleType(defaultPlane);
+		Map<String, Double> maximumObservedVelocityByAircraftType = new HashMap<>();
+		for (FlightInformation flight : flightInformationList) {
+			double travelTime = ChronoUnit.SECONDS.between(flight.filedOffBlockTime, flight.filedArrivalTime);
+			if (travelTime > 0. && flight.distance > 0.) {
+				maximumObservedVelocityByAircraftType.merge(
+					flight.aircraftType,
+					flight.distance / travelTime,
+					Math::max
+				);
+			}
+		}
+
+		Map<String, VehicleType> planeTypes = new HashMap<>();
+		Set<String> aircraftTypes = new TreeSet<>();
+		flightInformationList.forEach(flight -> aircraftTypes.add(flight.aircraftType));
+		for (String aircraftType : aircraftTypes) {
+			VehicleType planeType = createPlaneType(aircraftType, maximumObservedVelocityByAircraftType.get(aircraftType));
+			planeScenario.getTransitVehicles().addVehicleType(planeType);
+			planeTypes.put(aircraftType, planeType);
+		}
 
 		// Create the plane-network and add airports into it (without connections)
 		for(var airport : airportSet){
@@ -167,15 +184,29 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 			planeScenario.getTransitSchedule().addStopFacility(stopFacility);
 		}
 
+		Map<String, DoubleSummaryStatistics> distanceStatisticsByConnection = new HashMap<>();
+		Map<String, Double> minimumTravelTimeByConnection = new HashMap<>();
+		for (var flightInformation : flightInformationList) {
+			double travelTime = ChronoUnit.SECONDS.between(flightInformation.filedOffBlockTime, flightInformation.filedArrivalTime);
+			if (travelTime < 1. || flightInformation.distance < 1.) {
+				continue;
+			}
+
+			String connectionId = flightInformation.ADEP + "_" + flightInformation.ADES;
+			distanceStatisticsByConnection.computeIfAbsent(connectionId, ignored -> new DoubleSummaryStatistics()).accept(flightInformation.distance);
+			minimumTravelTimeByConnection.merge(connectionId, travelTime, Math::min);
+		}
+
 		// Create schedule with given flightInformation
 		for(var flightInformation : flightInformationList){
 			// Prepare Ids
-			String id = flightInformation.ADEP + "_" + flightInformation.ADES + "_" + flightInformation.id;
-			Id<Link> linkId = Id.createLinkId(id);
-			Id<TransitLine> lineId = Id.create(id, TransitLine.class);
-			Id<TransitRoute> routeId = Id.create(id, TransitRoute.class);
-			Id<Vehicle> vehicleId = Id.create(id, Vehicle.class);
-			Id<Departure> departureId = Id.create(id, Departure.class);
+			String connectionId = flightInformation.ADEP + "_" + flightInformation.ADES;
+			String flightId = connectionId + "_" + flightInformation.id;
+			Id<Link> linkId = Id.createLinkId(connectionId);
+			Id<TransitLine> lineId = Id.create(flightId, TransitLine.class);
+			Id<TransitRoute> routeId = Id.create(flightId, TransitRoute.class);
+			Id<Vehicle> vehicleId = Id.create(flightId, Vehicle.class);
+			Id<Departure> departureId = Id.create(flightId, Departure.class);
 
 			// Skip if flightInformation can't be added
 			double time = ChronoUnit.SECONDS.between(flightInformation.filedOffBlockTime, flightInformation.filedArrivalTime);
@@ -203,24 +234,29 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 				continue;
 			}
 
-			var flightLink = NetworkUtils.createLink(
-				linkId,
-				from,
-				to,
-				planeScenario.getNetwork(),
-				flightInformation.distance,
-				flightInformation.distance / time,
-				3600,
-				1
-			);
-			flightLink.getAttributes().putAttribute("flightConnection", "yes");
-
-			// Add the link for this flight
-			planeScenario.getNetwork().addLink(flightLink);
+			if (!planeScenario.getNetwork().getLinks().containsKey(linkId)) {
+				double averageDistance = distanceStatisticsByConnection.get(connectionId).getAverage();
+				double minimumTravelTime = minimumTravelTimeByConnection.get(connectionId);
+				Link flightLink = NetworkUtils.createLink(
+					linkId,
+					from,
+					to,
+					planeScenario.getNetwork(),
+					averageDistance,
+					averageDistance / minimumTravelTime,
+					3600,
+					1
+				);
+				flightLink.setAllowedModes(Collections.singleton("airplane"));
+				flightLink.getAttributes().putAttribute("flightConnection", "yes");
+				planeScenario.getNetwork().addLink(flightLink);
+			}
 
 			// Add the transitLine
 
-			planeScenario.getTransitSchedule().addTransitLine(scheduleFactory.createTransitLine(lineId));
+			TransitLine transitLine = scheduleFactory.createTransitLine(lineId);
+			addFlightAttributes(transitLine, flightInformation);
+			planeScenario.getTransitSchedule().addTransitLine(transitLine);
 
 			List<Id<Link>> links = List.of(
 				Id.createLinkId(flightInformation.ADEP + "taxiOutbound"),
@@ -249,17 +285,18 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 					.build()
 			);
 
-			planeScenario.getTransitSchedule().getTransitLines().get(lineId).addRoute(scheduleFactory.createTransitRoute(routeId, route, stops, "pt"));
+			transitLine.addRoute(scheduleFactory.createTransitRoute(routeId, route, stops, "pt"));
 
-			Vehicle plane = VehicleUtils.createVehicle(vehicleId, defaultPlane);
+			Vehicle plane = VehicleUtils.createVehicle(vehicleId, planeTypes.get(flightInformation.aircraftType));
 			plane.getAttributes().putAttribute("airplane", "yes");
+			addFlightAttributes(plane, flightInformation);
 			planeScenario.getTransitVehicles().addVehicle(plane);
 			Departure departure = scheduleFactory.createDeparture(departureId, flightInformation.filedOffBlockTime.toLocalTime().toSecondOfDay() - boarding_time);
 			departure.setVehicleId(vehicleId);
-			planeScenario.getTransitSchedule().getTransitLines().get(lineId).getRoutes().get(routeId).addDeparture(departure);
+			transitLine.getRoutes().get(routeId).addDeparture(departure);
 
 			// Add attributes to the schedules
-			planeScenario.getTransitSchedule().getTransitLines().get(lineId).getAttributes().putAttribute("flightConnection", "yes");
+			transitLine.getAttributes().putAttribute("flightConnection", "yes");
 
 		}
 
