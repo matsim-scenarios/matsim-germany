@@ -16,6 +16,7 @@ import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.routes.NetworkRoute;
 import org.matsim.core.population.routes.RouteUtils;
+import org.matsim.core.scenario.ProjectionUtils;
 import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.core.utils.collections.Tuple;
 import org.matsim.core.utils.geometry.CoordUtils;
@@ -247,9 +248,18 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		}
 
 		// Print output files
-		NetworkUtils.writeNetwork(planeScenario.getNetwork(), outputNetwork);
-		new MatsimVehicleWriter(planeScenario.getTransitVehicles()).writeFile(outputVehicles);
-		new TransitScheduleWriter(planeScenario.getTransitSchedule()).writeFile(outputSchedule);
+		ProjectionUtils.putCRS(planeScenario.getNetwork(), crs.getTargetCRS());
+		ProjectionUtils.putCRS(planeScenario.getTransitSchedule(), crs.getTargetCRS());
+		if (!Files.exists(outputDir)) {
+			try {
+				Files.createDirectories(outputDir);
+			} catch (IOException e) {
+				throw new RuntimeException(e);
+			}
+		}
+		NetworkUtils.writeNetwork(planeScenario.getNetwork(), outputDir.resolve("outputNetwork.xml.gz").toString());
+		new MatsimVehicleWriter(planeScenario.getTransitVehicles()).writeFile(outputDir.resolve("outputVehicles.xml.gz").toString());
+		new TransitScheduleWriter(planeScenario.getTransitSchedule()).writeFile(outputDir.resolve("outputSchedule.xml.gz").toString());
 
 		return 0;
 	}
