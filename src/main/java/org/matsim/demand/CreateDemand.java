@@ -48,6 +48,7 @@ import org.matsim.api.core.v01.population.PopulationFactory;
 import org.matsim.application.options.ShpOptions;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.population.PopulationUtils;
+import org.matsim.core.scenario.ProjectionUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.core.utils.geometry.geotools.MGC;
 import org.matsim.core.utils.geometry.transformations.TransformationFactory;
@@ -59,24 +60,27 @@ import org.matsim.core.utils.io.IOUtils;
 
 public class CreateDemand {
 
+	public static final String DEFAULT_OUTPUT_CRS = "EPSG:25832";
+	private static final String NUTS_CRS = "EPSG:31467";
+	private static final String RESIDENTIAL_AREAS_CRS = "EPSG:31467";
 
 	private static Map<String, Geometry> regions;
 	private static final Map<String, EnumeratedDistribution<Geometry>> landcoverPerZone = new HashMap<>();
 	private static Population population;
-	private static final GeometryFactory geometryFactory = new GeometryFactory();
+	private static CoordinateTransformation coordinateTransformation;
 
 	private static final Random random = new Random(100);
 	private static final TripStartTimeCalculator tripStartTimeCalculator = new DefaultTripStartTimeCalculator(random);
 //	private static final Random random = MatsimRandom.getLocalInstance();
 
-
-	public static Population create(String outputPopulationFile, double sample, boolean train, boolean car, boolean airplane, boolean pt, boolean bike, boolean walk) throws MalformedURLException {
+	public static Population create(String outputPopulationFile, String outputCrs, double sample, boolean train, boolean car, boolean airplane, boolean pt, boolean bike, boolean walk) throws MalformedURLException {
 		Configurator.setLevel("org.matsim.core.utils.geometry.geotools.MGC", Level.ERROR);
+		coordinateTransformation = TransformationFactory.getCoordinateTransformation(RESIDENTIAL_AREAS_CRS, outputCrs);
 
 		//		String shpNUTS3 = "https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/germany/original_data/shapes/NUTS3/NUTS3_2010_DE.shp";
 		String shpNUTS3 = "../public-svn/matsim/scenarios/countries/de/germany/original_data/shapes/NUTS3/NUTS3_2010_DE.shp";
-		ShpOptions shpOptionsNUTS = new ShpOptions(shpNUTS3, "EPSG:4326", StandardCharsets.ISO_8859_1);
-		ShpOptions.Index indexNUTS = shpOptionsNUTS.createIndex("NUTS_ID");
+		ShpOptions shpOptionsNUTS = new ShpOptions(shpNUTS3, NUTS_CRS, StandardCharsets.ISO_8859_1);
+		ShpOptions.Index indexNUTS = shpOptionsNUTS.createIndex(RESIDENTIAL_AREAS_CRS, "NUTS_ID");
 		regions = shpOptionsNUTS.readFeatures().stream().collect(Collectors.toMap(feature -> (String) feature.getAttribute("NUTS_ID"), feature -> (Geometry) feature.getDefaultGeometry()));
 
 		population = PopulationUtils.createPopulation(ConfigUtils.createConfig());
@@ -86,7 +90,7 @@ public class CreateDemand {
 		HashMap<String, List<Pair<Geometry, Double>>> weightedGeometriesPerZones = new HashMap<>();
 //		ShpOptions shpOptionsResidentialAreas = new ShpOptions("https://svn.vsp.tu-berlin.de/repos/public-svn/matsim/scenarios/countries/de/germany/original_data/shapes/Landschaftsmodell/sie01_f.shp", "EPSG:31467", StandardCharsets.ISO_8859_1);
 
-		ShpOptions shpOptionsResidentialAreas = new ShpOptions("../public-svn/matsim/scenarios/countries/de/germany/original_data/shapes/Landschaftsmodell/sie01_f.shp", "EPSG:31467", StandardCharsets.ISO_8859_1);
+		ShpOptions shpOptionsResidentialAreas = new ShpOptions("../public-svn/matsim/scenarios/countries/de/germany/original_data/shapes/Landschaftsmodell/sie01_f.shp", RESIDENTIAL_AREAS_CRS, StandardCharsets.ISO_8859_1);
 		for (SimpleFeature residentialArea : shpOptionsResidentialAreas.readFeatures()) {
 			Geometry geometry = (Geometry) residentialArea.getDefaultGeometry();
 			String zoneNUTS = indexNUTS.query(MGC.point2Coord(geometry.getCentroid()));
@@ -216,6 +220,7 @@ public class CreateDemand {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		ProjectionUtils.putCRS(population, outputCrs);
 		PopulationUtils.writePopulation(population, outputPopulationFile);
 		return population;
 	}
@@ -270,11 +275,35 @@ public class CreateDemand {
 
 	private static Coord getCoordInGeometry(String zone) {
 
-		Geometry selectedLandcover = landcoverPerZone.get(zone).sample();
+		EnumeratedDistribution<Geometry> landcoverDistribution = landcoverPerZone.get(zone);
+		if (landcoverDistribution == null) {
+			throw new IllegalArgumentException("No residential-area geometry found for NUTS-3 zone " + zone);
+		}
+		Geometry selectedLandcover = landcoverDistribution.sample();
 
-		Point point = selectedLandcover.getInteriorPoint();
-		CoordinateTransformation tf = TransformationFactory.getCoordinateTransformation("EPSG:31467", "EPSG:25832");
-		return tf.transform(MGC.point2Coord(point));
+		Point point = getRandomPoint(selectedLandcover);
+		return coordinateTransformation.transform(MGC.point2Coord(point));
+	}
+
+	/**
+	 * Samples a uniformly distributed point within the given geometry using rejection sampling on its bounding box.
+	 * The returned point uses the geometry's coordinate system. If no point can be found after 10,000 attempts, the
+	 * geometry's interior point is returned as a fallback.
+	 *
+	 * @param geometry geometry in which the point is sampled
+	 * @return a point covered by the geometry
+	 */
+	private static Point getRandomPoint(Geometry geometry) {
+		Envelope envelope = geometry.getEnvelopeInternal();
+		for (int attempt = 0; attempt < 10_000; attempt++) {
+			double x = envelope.getMinX() + envelope.getWidth() * coordinateRandom.nextDouble();
+			double y = envelope.getMinY() + envelope.getHeight() * coordinateRandom.nextDouble();
+			Point point = MGC.xy2Point(x, y);
+			if (geometry.covers(point)) {
+				return point;
+			}
+		}
+		return geometry.getInteriorPoint();
 	}
 
 	/**

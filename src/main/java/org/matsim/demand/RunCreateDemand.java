@@ -41,11 +41,12 @@ public class RunCreateDemand {
 		boolean walk = false;
 
 		double sample = 0.001;
+		String outputCrs = CreateDemand.DEFAULT_OUTPUT_CRS;
 
 		String outputPopulationFile = "output/onlyCar" + getSampleNameOfOutputFolder(sample) + "pct.xml.gz";
 
 		try {
-			CreateDemand.create(outputPopulationFile, sample, train, car, airplane, pt, bike, walk);
+			CreateDemand.create(outputPopulationFile, outputCrs, sample, train, car, airplane, pt, bike, walk);
 		} catch (MalformedURLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
