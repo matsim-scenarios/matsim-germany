@@ -12,6 +12,7 @@ import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.network.Node;
 import org.matsim.application.MATSimAppCommand;
 import org.matsim.application.options.CrsOptions;
+import org.matsim.application.options.ShpOptions;
 import org.matsim.core.config.ConfigUtils;
 import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.population.routes.NetworkRoute;
@@ -28,9 +29,12 @@ import org.matsim.vehicles.MatsimVehicleWriter;
 import org.matsim.vehicles.Vehicle;
 import org.matsim.vehicles.VehicleType;
 import org.matsim.vehicles.VehicleUtils;
+import org.matsim.utils.objectattributes.attributable.Attributable;
+import org.matsim.utils.objectattributes.attributable.Attributes;
 import picocli.CommandLine;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -43,8 +47,8 @@ import java.util.*;
  * Parses EUROCONTROL ADRR flight data and generates a MATSim transit schedule, network, and
  * vehicle file. Also generates a plane network containing airports and connection links.
  *
- * <p>See the package documentation for details on the input dataset and the default-plane
- * vehicle type limitation.</p>
+ * <p>See the package documentation for details on the input dataset, geographic filtering,
+ * aircraft types, operators, and empirically estimated vehicle speeds.</p>
  */
 public class CreatePlaneSchedule implements MATSimAppCommand {
 
@@ -53,10 +57,10 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 	@CommandLine.Option(names = "--adrr-flight-data", description = "Path to the flights file of the EUROCONTROL ADRR dataset", required = true)
 	private String flightPath;
 
-	@CommandLine.Option(names = "--sample-day", description = "The day to sample from the dataset. Make sure to give a date with no holidays or other unusual events. Format: DD-MM-YYYY", required = true)
+	@CommandLine.Option(names = "--sample-day", description = "The day to sample from the dataset. Make sure to give a date with no holidays or other unusual events. Format: DD-MM-YYYY", defaultValue = "06-12-2023")
 	private String sampleDay;
 
-	@CommandLine.Option(names = "--default-passenger-capacity", description = "Passenger capacity for all planes (currently no free data for plane capacities available)", required = true)
+	@CommandLine.Option(names = "--default-passenger-capacity", description = "Passenger capacity assigned to every aircraft type", defaultValue = "160")
 	private int defaultPassengerCapacity;
 
 	@CommandLine.Option(names = "--boarding-time", description = "Negative offset of departure in seconds, simulating boarding time. " +
@@ -353,5 +357,10 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		}
 	}
 
-	record FlightInformation(String id, String ADEP, String ADES, LocalDateTime filedOffBlockTime, LocalDateTime filedArrivalTime, double distance){}
+	/**
+	 * Flight data required to create one scheduled departure.
+	 */
+	private record FlightInformation(String id, String ADEP, String ADES, LocalDateTime filedOffBlockTime,
+		LocalDateTime filedArrivalTime, double distance, String aircraftType, String operator) {}
+
 }

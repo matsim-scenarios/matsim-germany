@@ -22,12 +22,27 @@
  * seconds before suffices). For example, a boarding time of 3600 s shifts a departure at t=10000 s
  * to t=6400 s, forcing agents to be at the airport at least an hour before the flight leaves.</p>
  *
- * <h2>Vehicle types - default plane</h2>
- * <p>The ADRR Flight dataset contains an ICAO aircraft type code per connection, but the lookup
- * table mapping those codes to aircraft specifications is not freely available (costs several
- * hundred euros). As a temporary measure, all departures are assigned a single
- * {@code default-plane} vehicle type instead of type-specific vehicles. The passenger capacity
- * of that vehicle type can be configured via the {@code --default-passenger-capacity} argument.</p>
+ * <h2>Aircraft types, operators, and performance</h2>
+ * <p>Each value in the ADRR {@code AC Type} field creates a separate MATSim vehicle type. All types
+ * use the capacity configured with {@code --default-passenger-capacity}. The {@code AC Operator}
+ * and {@code AC Registration} values are stored as attributes on the corresponding transit line
+ * and vehicle using the names {@code icaoOperator} and {@code aircraftRegistration}. The aircraft
+ * type is also stored as {@code icaoAircraftType}. No additional aircraft or operator lookup files
+ * are required.</p>
+ *
+ * <p>The maximum velocity of a vehicle type is estimated from the selected ADRR flights as the
+ * maximum observed ratio of actual flight distance to filed block time for that aircraft type.
+ * This is an empirical effective block velocity, not the aircraft's technical maximum velocity.
+ * During QSim, the effective link speed is limited by both the link free speed and this vehicle
+ * type maximum velocity. Public-transport routing continues to use the departure and arrival
+ * offsets in the transit schedule.</p>
+ *
+ * <h2>Geographic filtering</h2>
+ * <p>Flights can be filtered independently by departure and destination using the
+ * {@code --departure-area} and {@code --destination-area} arguments. Each argument accepts a
+ * polygon file in Shapefile, GeoPackage, or zipped Shapefile format. Specifying the same country
+ * geometry for both arguments selects domestic flights only. Specifying only one argument selects
+ * all flights departing from or arriving in that area, respectively.</p>
  *
  * <h2>Airport network structure</h2>
  * <p>Each airport is represented by a fixed sequence of five links:</p>
