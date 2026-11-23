@@ -63,14 +63,14 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		"Agents need to arrive at least <boarding-time> seconds before actual departure to enter the flight. Arrival is not changed by this parameter", defaultValue = "1800")
 	private int boarding_time;
 
-	@CommandLine.Option(names = "--network-output", description = "Path to output network", required = true)
-	private String outputNetwork;
+	@CommandLine.Option(names ="--output-dir", description = "Path to output directory", required = true)
+	private Path outputDir;
 
-	@CommandLine.Option(names = "--schedule-output", description = "Path to output schedule", required = true)
-	private String outputSchedule;
+	@CommandLine.Option(names = "--departure-area", description = "Optional polygon file (.shp, .gpkg, or .zip). Only flights departing inside this area are included.")
+	private String departureArea;
 
-	@CommandLine.Option(names = "--vehicle-output", description = "Path to output vehicles", required = true)
-	private String outputVehicles;
+	@CommandLine.Option(names = "--destination-area", description = "Optional polygon file (.shp, .gpkg, or .zip). Only flights arriving inside this area are included.")
+	private String destinationArea;
 
 	@CommandLine.Mixin
 	private CrsOptions crs = new CrsOptions("EPSG:4326");
@@ -274,6 +274,34 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		new TransitScheduleWriter(planeScenario.getTransitSchedule()).writeFile(outputDir.resolve("outputSchedule.xml.gz").toString());
 
 		return 0;
+	}
+
+	private VehicleType createPlaneType(String aircraftType, Double maximumObservedBlockVelocity) {
+		VehicleType planeType = VehicleUtils.createVehicleType(Id.createVehicleTypeId(aircraftType), "pt");
+		planeType.getAttributes().putAttribute("airplane", "yes");
+		planeType.getAttributes().putAttribute("icaoAircraftType", aircraftType);
+		if (defaultPassengerCapacity < 1) {
+			throw new IllegalArgumentException("seats must be positive for aircraft type " + aircraftType);
+		}
+		planeType.getCapacity().setSeats(defaultPassengerCapacity);
+
+		if (maximumObservedBlockVelocity != null) {
+			planeType.setMaximumVelocity(maximumObservedBlockVelocity);
+			planeType.getAttributes().putAttribute("maximumVelocitySource", "maximumObservedBlockVelocity");
+		}
+
+		return planeType;
+	}
+
+	private void addFlightAttributes(Attributable attributable, FlightInformation flightInformation) {
+		Attributes attributes = attributable.getAttributes();
+		attributes.putAttribute("icaoAircraftType", flightInformation.aircraftType);
+		attributes.putAttribute("icaoOperator", flightInformation.operator);
+	}
+
+	private String normalizeCode(String value, String fallback) {
+		String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+		return normalized.isEmpty() ? fallback : normalized;
 	}
 
 	private ShpOptions.Index createAreaIndex(String area) {
