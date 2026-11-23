@@ -4,6 +4,7 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.geotools.referencing.GeodeticCalculator;
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
@@ -21,7 +22,6 @@ import org.matsim.core.population.routes.RouteUtils;
 import org.matsim.core.scenario.ProjectionUtils;
 import org.matsim.core.scenario.ScenarioUtils;
 import org.matsim.core.utils.collections.Tuple;
-import org.matsim.core.utils.geometry.CoordUtils;
 import org.matsim.core.utils.geometry.CoordinateTransformation;
 import org.matsim.pt.transitSchedule.TransitRouteStopImpl;
 import org.matsim.pt.transitSchedule.TransitScheduleFactoryImpl;
@@ -34,6 +34,7 @@ import org.matsim.utils.objectattributes.attributable.Attributable;
 import org.matsim.utils.objectattributes.attributable.Attributes;
 import picocli.CommandLine;
 
+import java.awt.geom.Point2D;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -133,13 +134,13 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 				));
 
 				if(adepCoord != null){
-					airportSet.add(new Tuple<>(record.get("ADEP"), transformation.transform(adepCoord)));
+					airportSet.add(new Tuple<>(record.get("ADEP"), adepCoord));
 				} else {
 					log.warn("Skipped ADEP airport {} due to missing coordinates!", record.get("ADEP"));
 				}
 
 				if(adesCoord != null) {
-					airportSet.add(new Tuple<>(record.get("ADES"), transformation.transform(adesCoord)));
+					airportSet.add(new Tuple<>(record.get("ADES"), adesCoord));
 				} else {
 					log.warn("Skipped ADES airport {} due to missing coordinates!", record.get("ADES"));
 				}
@@ -176,10 +177,10 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 
 		// Create the plane-network and add airports into it (without connections)
 		for(var airport : airportSet){
-			addAirportToNetwork(planeScenario.getNetwork(), airport);
+			addAirportToNetwork(planeScenario.getNetwork(), airport, transformation);
 			TransitStopFacility stopFacility = scheduleFactory.createTransitStopFacility(
 				Id.create(airport.getFirst(), TransitStopFacility.class),
-				CoordUtils.plus(airport.getSecond(), new Coord(2000, 500)),
+				planeScenario.getNetwork().getNodes().get(Id.createNodeId(airport.getFirst())).getCoord(),
 				false
 			);
 			stopFacility.setLinkId(Id.createLinkId(airport.getFirst()));
@@ -419,14 +420,21 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 		return new Coord(Double.parseDouble(longitude), Double.parseDouble(latitude));
 	}
 
-	private void addAirportToNetwork(Network planeNetwork, Tuple<String, Coord> airport){
+	private void addAirportToNetwork(Network planeNetwork, Tuple<String, Coord> airport,
+		CoordinateTransformation transformation){
 		List<Node> airportNodes = new ArrayList<>();
-		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "runwayInbound"), airport.getSecond()));
-		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "taxiInbound"), CoordUtils.plus(airport.getSecond(), new Coord(1500, 0))));
-		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst()), CoordUtils.plus(airport.getSecond(), new Coord(2000, 500))));
-		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "apron"), CoordUtils.plus(airport.getSecond(), new Coord(2000, 1000))));
-		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "taxiOutbound"), CoordUtils.plus(airport.getSecond(), new Coord(1500, 1500))));
-		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "runwayOutbound"), CoordUtils.plus(airport.getSecond(), new Coord(0, 1500))));
+		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "runwayInbound"),
+			transformAirportOffset(airport.getSecond(), 0, 0, transformation)));
+		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "taxiInbound"),
+			transformAirportOffset(airport.getSecond(), 1500, 0, transformation)));
+		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst()),
+			transformAirportOffset(airport.getSecond(), 2000, 500, transformation)));
+		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "apron"),
+			transformAirportOffset(airport.getSecond(), 2000, 1000, transformation)));
+		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "taxiOutbound"),
+			transformAirportOffset(airport.getSecond(), 1500, 1500, transformation)));
+		airportNodes.add(NetworkUtils.createNode(Id.createNodeId(airport.getFirst() + "runwayOutbound"),
+			transformAirportOffset(airport.getSecond(), 0, 1500, transformation)));
 
 		// Add an attribute to the airport nodes (makes identification of airports easier)
 		for(var node : airportNodes){
@@ -447,6 +455,20 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 			link.getAttributes().putAttribute("airport", airport.getFirst());
 			planeNetwork.addLink(link);
 		}
+	}
+
+	private Coord transformAirportOffset(Coord airportWgs84, double eastMeters, double northMeters,
+		CoordinateTransformation transformation) {
+		Coord offsetWgs84 = airportWgs84;
+		double distance = Math.hypot(eastMeters, northMeters);
+		if (distance > 0.) {
+			GeodeticCalculator calculator = new GeodeticCalculator();
+			calculator.setStartingGeographicPoint(airportWgs84.getX(), airportWgs84.getY());
+			calculator.setDirection(Math.toDegrees(Math.atan2(eastMeters, northMeters)), distance);
+			Point2D destination = calculator.getDestinationGeographicPoint();
+			offsetWgs84 = new Coord(destination.getX(), destination.getY());
+		}
+		return transformation.transform(offsetWgs84);
 	}
 
 	/**
