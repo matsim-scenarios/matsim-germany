@@ -37,6 +37,11 @@
  * type maximum velocity. Public-transport routing continues to use the departure and arrival
  * offsets in the transit schedule.</p>
  *
+ * <p>Flight transit routes, aircraft vehicle types, and all links in the aircraft network use the
+ * {@code airplane} mode. Airport stop facilities have the attribute {@code type=airport}, which
+ * allows the SwissRailRaptor intermodal stop finder to identify them. The generated files can
+ * therefore be routed directly without rewriting their modes while merging them into a scenario.</p>
+ *
  * <h2>Geographic filtering</h2>
  * <p>Flights can be filtered independently by departure and destination using the
  * {@code --departure-area} and {@code --destination-area} arguments. Each argument accepts a

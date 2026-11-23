@@ -7,6 +7,7 @@ import org.apache.logging.log4j.Logger;
 import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
+import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
 import org.matsim.api.core.v01.network.Node;
@@ -53,6 +54,7 @@ import java.util.*;
 public class CreatePlaneSchedule implements MATSimAppCommand {
 
 	private static final Logger log = LogManager.getLogger(CreatePlaneSchedule.class);
+	private static final Set<String> AIRPLANE_ALLOWED_MODES = Set.of(TransportMode.airplane);
 
 	@CommandLine.Option(names = "--adrr-flight-data", description = "Path to the flights file of the EUROCONTROL ADRR dataset", required = true)
 	private String flightPath;
@@ -181,6 +183,7 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 				false
 			);
 			stopFacility.setLinkId(Id.createLinkId(airport.getFirst()));
+			stopFacility.getAttributes().putAttribute("type", "airport");
 			planeScenario.getTransitSchedule().addStopFacility(stopFacility);
 		}
 
@@ -247,7 +250,7 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 					3600,
 					1
 				);
-				flightLink.setAllowedModes(Collections.singleton("airplane"));
+				flightLink.setAllowedModes(AIRPLANE_ALLOWED_MODES);
 				flightLink.getAttributes().putAttribute("flightConnection", "yes");
 				planeScenario.getNetwork().addLink(flightLink);
 			}
@@ -285,7 +288,7 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 					.build()
 			);
 
-			transitLine.addRoute(scheduleFactory.createTransitRoute(routeId, route, stops, "pt"));
+			transitLine.addRoute(scheduleFactory.createTransitRoute(routeId, route, stops, TransportMode.airplane));
 
 			Vehicle plane = VehicleUtils.createVehicle(vehicleId, planeTypes.get(flightInformation.aircraftType));
 			plane.getAttributes().putAttribute("airplane", "yes");
@@ -318,7 +321,7 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 	}
 
 	private VehicleType createPlaneType(String aircraftType, Double maximumObservedBlockVelocity) {
-		VehicleType planeType = VehicleUtils.createVehicleType(Id.createVehicleTypeId(aircraftType), "pt");
+		VehicleType planeType = VehicleUtils.createVehicleType(Id.createVehicleTypeId(aircraftType), TransportMode.airplane);
 		planeType.getAttributes().putAttribute("airplane", "yes");
 		planeType.getAttributes().putAttribute("icaoAircraftType", aircraftType);
 		if (defaultPassengerCapacity < 1) {
@@ -389,6 +392,7 @@ public class CreatePlaneSchedule implements MATSimAppCommand {
 
 		// Add an attribute to the airport links (makes identification of airports easier)
 		for (var link : airportLinks){
+			link.setAllowedModes(AIRPLANE_ALLOWED_MODES);
 			link.getAttributes().putAttribute("airport", airport.getFirst());
 			planeNetwork.addLink(link);
 		}
